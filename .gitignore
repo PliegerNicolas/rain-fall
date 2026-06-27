@@ -1,0 +1,16 @@
+# Go build artifacts
+/bin/
+/out/
+/coverage.out
+/*.exe
+*.test
+*.out
+
+# Go module cache and local tooling
+.gocache/
+.gotmp/
+.vscode/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
