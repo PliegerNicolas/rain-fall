@@ -8,7 +8,7 @@
 - **Tools**: Ghidra (decompiler), terminal (bash/zsh)
 
 **Decompiled Source**
-- **Link**: Decompiled C source: [Ressources/decompiled_level0.c](Ressources/decompiled_level0.c#L1-L40)
+- **Link**: Decompiled C source: [source](source.c#L1-L40)
 - **Relevant fragment**:
 
 ```c
