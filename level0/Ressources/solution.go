@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	host := "10.171.62.187"
+	host := "10.171.52.176"
 	port := "4242"
 	user := "level0"
 	password := "level0"

@@ -1,3 +1,53 @@
+**Level0 Walkthrough**
+
+**Overview**
+- **Summary**: A concise technical record of how I solved `level0` by decompiling the binary, locating the input check, deriving the required argument, spawning a shell, and saving the recovered token to `flag`.
+
+**Environment**
+- **OS**: Linux
+- **Tools**: Ghidra (decompiler), terminal (bash/zsh)
+
+**Decompiled Source**
+- **Link**: Decompiled C source: [Ressources/decompiled_level0.c](Ressources/decompiled_level0.c#L1-L40)
+- **Relevant fragment**:
+
+```c
+int main(undefined4 param_1,int param_2)
+{
+    
+
+    iVar1 = atoi(*(char **)(param_2 + 4));
+    if (iVar1 == 0x1a7) {
+        ...
+    } 
+    ...
+}
 ```
 
+**Analysis**
+- **What it does**: The program reads the first command-line argument, converts it to an integer with `atoi`, and compares it to the constant `0x1a7`.
+- **Value**: `0x1a7` (hex) = `423` (decimal).
+- **Control flow**: If the value equals `423`, the program sets real/effective UIDs and GIDs (via `setresgid`/`setresuid`) then calls `execv("/bin/sh", ...)`, spawning a shell with the process privileges. Otherwise it prints `No !` to `stderr`.
+- **Implication**: Passing `423` as the first argument grants a shell; from that shell you can read files accessible to the binary's privileges (the CTF token).
+
+**Reproduction**
+- **Run**: Execute the binary with `423` as the first argument.
+
+```sh
+./level0 423
 ```
+
+- **Extract token**: From the spawned shell, read and save the token. Example (adjust path as needed):
+
+```sh
+cat  /home/user/level1/.pass
+```
+
+- **Result**: The token was retrieved and saved into `flag` in this level's directory.
+
+**Notes & Mitigations**
+- **Root cause**: Intentional challenge — a numeric argument check that, when satisfied, spawns a shell. `atoi` performs no validation and the overall design intentionally grants a shell on success.
+- **When auditing**: Check for `setuid`/`setgid` behaviors and unvalidated inputs before granting interactive shells.
+
+**Conclusion**
+- **Steps taken**: Decompile → identify numeric check → convert `0x1a7` → run binary with `423` → obtain shell → extract token → save to `flag`.
