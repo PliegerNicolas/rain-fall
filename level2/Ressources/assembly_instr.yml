@@ -1,0 +1,47 @@
+instructions:
+    mov : move data from on location to another
+      - dest : to
+      - source: from
+    lea : store the adress on the destination, assign adress
+      - dest:
+      - value: address
+    jmp : CPU jum to a new location by changing the instruction pointer
+      - dest :
+    add / sub : arithmetic adding
+      - dest : "dest = dest +/- value"
+      - value: value to add
+    inc : in/de/crement dest by 1
+      - syntax: inc [dest]
+    push: put a value on the stack
+      example: push eax
+    pop : remove value from the stack
+    call: call a function [call nameFunc]
+    cmp : je, jne,
+    AND/XOR : value, value
+
+    
+    DWORD PTR : [4 byte] Pointer
+    BYTE PTR  : [1 byte] 
+    WORD PTR  : [2 BYTES]
+
+ 
+    fixed rules I can follow ! 
+    [ebp - offset] : us the ebp to acces variables
+    [ebp + 12]  arg2
+    [ebp + 8 ]  arg1
+    [ebp + 4 ]  return address   ← always 4 bytes
+    [ebp + 0 ]  saved EBP
+    [ebp - x ]  local variables
+
+//l       : learn for registers
+// gdb    : small tutoriel
+//register: fast memory that store temporary some data and instructions to be executed by the CPU Temporary store data during program execution
+//eax  : accumulator, return of functions
+//ebx  : base register use with arrays
+//ecx  : counter for while loops, 
+//edx  : data register to improve precision of eax
+// esi : source string operations
+// edi : destination index for string operations 
+// ebp : base pointer  hold local vars and argumentsi | argc\argv
+// esp : stack pointer that points to the top address of the stack
+// eip : instruction pointer

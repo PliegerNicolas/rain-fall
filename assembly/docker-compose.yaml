@@ -1,0 +1,11 @@
+services:
+  gdbenv:
+    build:
+      context: .
+      dockerfile: dockerfile
+    container_name: gdbenv
+    environment:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+    volumes:
+      - ./host-files:/root/host-files
