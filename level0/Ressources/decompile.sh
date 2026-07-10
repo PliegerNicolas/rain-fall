@@ -7,6 +7,7 @@ CURR_DIR_PATH="$(cd "$(dirname "$0")" && pwd)"
 ### SOURCES ###
 
 . "$CURR_DIR_PATH/../../common/ghidra/ghidra.sh";
+. "$CURR_DIR_PATH/sshid.sh";
 
 # ##### #
 # UTILS #
@@ -21,10 +22,10 @@ _log() {
 # #### #
 
 main() {
-    host="localhost";
-    port="4242";
-    username="level0";
-    password="level0";
+    host="${host:-localhost}";
+    port="${port:-4242}";
+    username="${username:-level0}";
+    password="${password:-level0}";
 
     remote_binary_path="~/level0";
     local_binary_path="$CURR_DIR_PATH/level0";

@@ -4,10 +4,10 @@
 # INCLUDE GUARD #
 # ############# #
 
-if [ -n "${_SSH_LIB_LOADED:-}" ]; then
+if [ -n "${_SSH_SESSION_LIB_LOADED:-}" ]; then
     return;
 else
-    _SSH_LIB_LOADED=1
+    _SSH_SESSION_LIB_LOADED=1
 fi
 
 # ##### #
