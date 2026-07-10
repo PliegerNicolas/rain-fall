@@ -6,7 +6,7 @@ CURR_DIR_PATH="$(cd "$(dirname "$0")" && pwd)"
 
 ### SOURCES ###
 
-. "$CURR_DIR_PATH/sshid.sh";
+. "$CURR_DIR_PATH/.sshid.sh";
 
 # ##### #
 # UTILS #
