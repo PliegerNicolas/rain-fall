@@ -26,8 +26,12 @@ main() {
     username="level0";
     password="level0";
 
-    sshpass -p "$password" scp -P "$port" "$username@$host:~/level0" "$CURR_DIR_PATH/level0";
-    ghidra_decompile "$CURR_DIR_PATH/level0" "$CURR_DIR_PATH/";
+    remote_binary_path="~/level0";
+    local_binary_path="$CURR_DIR_PATH/level0";
+
+    sshpass -p "$password" scp -P "$port" "$username@$host:$remote_binary_path" "$local_binary_path";
+    ghidra_decompile "$local_binary_path" "$CURR_DIR_PATH/";
+    rm -f "$local_binary_path";
 }
 
 main "$@";

@@ -34,67 +34,178 @@ _assert_realpath() {
     return 0;
 }
 
+# _get_decompile_to_c_script() {
+# 	cat <<-'EOF'
+# 		import ghidra.app.script.GhidraScript;
+# 		import ghidra.app.decompiler.DecompInterface;
+# 		import ghidra.app.decompiler.DecompileResults;
+# 		import ghidra.program.model.listing.Function;
+# 		import java.io.File;
+# 		import java.io.PrintWriter;
+
+# 		public class DecompileToC extends GhidraScript {
+
+#             private 
+
+# 		    @Override
+# 		    public void run() throws Exception {
+# 		        if (currentProgram == null) {
+# 		            printerr("No program is currently loaded.");
+# 		            return;
+# 		        }
+
+# 		        String[] argv = getScriptArgs();
+# 		        String outputFilePath = (argv != null && argv.length > 0) ? argv[0] : "./decompiled.c";
+
+# 		        File outputFile = new File(outputFilePath);
+# 		        if (outputFile.getParentFile() != null) {
+# 		            outputFile.getParentFile().mkdirs();
+# 		        }
+
+# 		        DecompInterface decomp = new DecompInterface();
+# 		        try (PrintWriter writer = new PrintWriter(outputFile)) {
+# 		            if (!decomp.openProgram(currentProgram)) {
+# 		                printerr("DecompInterface failed: " + decomp.getLastMessage());
+# 		                return;
+# 		            }
+
+# 		            for (Function f : currentProgram.getFunctionManager().getFunctions(true)) {
+# 		                if (monitor.isCancelled()) {
+# 		                    break;
+# 		                }
+
+# 		                if (!isUserDefinedFunction(f)) {
+# 		                    continue;
+# 		                }
+
+# 		                DecompileResults res = decomp.decompileFunction(f, 60, monitor);
+# 		                if (res != null && res.decompileCompleted()) {
+# 		                    String cCode = res.getDecompiledFunction().getC();
+# 		                    if (cCode != null) {
+# 		                        writer.println("// Function: " + f.getName());
+# 		                        writer.println(cCode);
+# 		                        writer.println("\n// " + "=".repeat(40) + "\n");
+# 		                    }
+# 		                } else {
+# 		                    printerr("Failed to decompile: " + f.getName());
+# 		                }
+# 		            }
+# 		        } catch (Exception e) {
+# 		            printerr("Failed to decompile: " + e.getMessage());
+# 		        } finally {
+# 		            decomp.dispose();
+# 		        }
+# 		    }
+# 		}
+# 	EOF
+# }
+
 _get_decompile_to_c_script() {
 	cat <<-'EOF'
-		import ghidra.app.script.GhidraScript;
-		import ghidra.app.decompiler.DecompInterface;
-		import ghidra.app.decompiler.DecompileResults;
-		import ghidra.program.model.listing.Function;
-		import java.io.File;
-		import java.io.PrintWriter;
+import ghidra.app.script.GhidraScript;
+import ghidra.app.decompiler.DecompInterface;
+import ghidra.app.decompiler.DecompileResults;
+import ghidra.program.model.address.Address;
+import ghidra.program.model.address.AddressIterator;
+import ghidra.program.model.listing.Function;
+import ghidra.program.model.listing.FunctionManager;
+import ghidra.program.model.symbol.Reference;
 
-		public class DecompileToC extends GhidraScript {
+import java.io.File;
+import java.io.PrintWriter;
+import java.util.HashSet;
+import java.util.Set;
 
-		    @Override
-		    public void run() throws Exception {
-		        if (currentProgram == null) {
-		            printerr("No program is currently loaded.");
-		            return;
-		        }
+public class DecompileToC extends GhidraScript {
 
-		        String[] argv = getScriptArgs();
-		        String outputFilePath = (argv != null && argv.length > 0) ? argv[0] : "./decompiled.c";
+    private final Set<Function> visitedFunctions = new HashSet<>();
 
-		        File outputFile = new File(outputFilePath);
-		        if (outputFile.getParentFile() != null) {
-		            outputFile.getParentFile().mkdirs();
-		        }
+    private String getOutputPath() {
+        String[] args = getScriptArgs();
+        return args.length > 0 ? args[0] : "./decompiled.c";
+    }
 
-		        DecompInterface decomp = new DecompInterface();
-		        try (PrintWriter writer = new PrintWriter(outputFile)) {
-		            if (!decomp.openProgram(currentProgram)) {
-		                printerr("DecompInterface failed: " + decomp.getLastMessage());
-		                return;
-		            }
+    private File createOutputFile(String path) {
+        File file = new File(path);
+        File parent = file.getParentFile();
+        if (parent != null)
+            parent.mkdirs();
+        return file;
+    }
 
-		            for (Function f : currentProgram.getFunctionManager().getFunctions(true)) {
-		                if (monitor.isCancelled()) {
-		                    break;
-		                }
+    private boolean isUserCode(Function f) {
+        if (f == null)
+            return false;
+        if (f.isExternal() || f.isThunk())
+            return false;
+        if (f.getParentNamespace() != null && !f.getParentNamespace().isGlobal())
+            return false;
+        if (!currentProgram.getMemory().contains(f.getEntryPoint()))
+            return false;
+        return true;
+    }
 
-		                if (f.isExternal() || f.isThunk() || f.getBody().isEmpty() || f.getParentNamespace().getName().equals("EXTERNAL")) {
-		                    continue;
-		                }
+    private void decompileRecursive(DecompInterface decomp, Function f, PrintWriter writer) {
+        if (!isUserCode(f) || visitedFunctions.contains(f))
+            return;
 
-		                DecompileResults res = decomp.decompileFunction(f, 60, monitor);
-		                if (res != null && res.decompileCompleted()) {
-		                    String cCode = res.getDecompiledFunction().getC();
-		                    if (cCode != null) {
-		                        writer.println("// Function: " + f.getName());
-		                        writer.println(cCode);
-		                        writer.println("\n// " + "=".repeat(40) + "\n");
-		                    }
-		                } else {
-		                    printerr("Failed to decompile: " + f.getName());
-		                }
-		            }
-		        } catch (Exception e) {
-		            printerr("Failed to decompile: " + e.getMessage());
-		        } finally {
-		            decomp.dispose();
-		        }
-		    }
-		}
+        visitedFunctions.add(f);
+        DecompileResults result = decomp.decompileFunction(f, 120, monitor);
+
+        if (result.decompileCompleted() && result.getDecompiledFunction() != null) {
+            writer.println("// Function: " + f.getName());
+            writer.println(result.getDecompiledFunction().getC());
+            writer.println();
+        } else {
+            println("Failed: " + f.getName());
+        }
+
+        AddressIterator it = f.getBody().getAddresses(true);
+
+        while (it.hasNext()) {
+            Address addr = it.next();
+            for (Reference ref : getReferencesFrom(addr)) {
+                if (!ref.getReferenceType().isCall())
+                    continue;
+                Function called = currentProgram.getFunctionManager().getFunctionAt(ref.getToAddress());
+                decompileRecursive(decomp, called, writer);
+            }
+        }
+    }
+
+    @Override
+    public void run() throws Exception {
+
+        if (currentProgram == null) {
+            printerr("No program loaded.");
+            return;
+        }
+
+        File output = createOutputFile(getOutputPath());
+
+        DecompInterface decomp = new DecompInterface();
+
+        if (!decomp.openProgram(currentProgram)) {
+            printerr("Decompiler init failed.");
+            return;
+        }
+
+        try (PrintWriter writer = new PrintWriter(output)) {
+            Function entry = getGlobalFunctions("main").stream().findFirst().orElse(null);
+            if (entry == null) {
+                printerr("main() not found.");
+                return;
+            }
+
+            decompileRecursive(decomp, entry, writer);
+        }
+        finally {
+            decomp.dispose();
+        }
+
+        println("Written: " + output.getAbsolutePath());
+    }
+}
 	EOF
 }
 
