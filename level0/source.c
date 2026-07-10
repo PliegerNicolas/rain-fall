@@ -31,8 +31,10 @@
 /* *                       Code restitué manuellement                      * */
 /* ************************************************************************* */
 
-// Ce code n'est pas 100% fidèle à l'original, mais il est fonctionnel,
-// plus lisible et conserve la vulnérabilité à exploiter.
+/*
+* Ce code n'est pas 100% fidèle à l'original, mais il est fonctionnel,
+* plus lisible et conserve la vulnérabilité à exploiter.
+*/
 
 #define _GNU_SOURCE
 #include <stdio.h>
@@ -41,20 +43,17 @@
 #include <sys/types.h>
 
 int main(int argc, char **argv) {
-	char	*argvv[] = {"/bin/sh", NULL};
-	uid_t	uid;
-	gid_t	gid;
-	
 	if (atoi(argv[1]) != 423) {
 		fputs("No !\n", stderr);
 		return 0;
 	}
 
-	gid = getegid();
-	uid = geteuid();
-	(void)setresgid(gid, gid, gid);
-	(void)setresuid(uid, uid, uid);
+	uid_t gid = getegid();
+	gid_t uid = geteuid();
+	setresgid(gid, gid, gid);
+	setresuid(uid, uid, uid);
 
-	execv(*argvv, argvv);
+	char *execv_argv[] = {"/bin/sh", NULL};
+	execv(execv_argv[0], execv_argv);
 	return 0;
 }
