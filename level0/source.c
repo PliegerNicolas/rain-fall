@@ -2,6 +2,8 @@
 /* *                       Code décompilé via GHIDRA                       * */
 /* ************************************************************************* */
 
+/* Function: main. Address: 08048ec0 */
+
 // undefined4 main(undefined4 param_1,int param_2)
 
 // {

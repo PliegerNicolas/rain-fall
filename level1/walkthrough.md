@@ -1,19 +1,19 @@
 # RainFall (level0)
 
 In this project, we try to **exploit binaries**.
-By doing so, we wish to read the `/home/user/levelXX/.pass` file, containing our flag serving as the password for the next level.
+By doing so, we wish to read the `/home/user/level2/.pass` file, containing our flag serving as the password for the next level.
 
 ## Binary decompilation.
 
 It is a **ELF 32-bit x86 LSB** executable as stated by the command `file -b ~/level1` commands.
 
-We use the `objdump -d ~/level1` command to deassemble the binary. We stored it's truncated result in the [source.asm](./source.asm) file.
+We use `objdump -d ~/level1` to deassemble the binary. We stored it's truncated result in the [source.asm](./source.asm) file.
 
-We also decompiled the binary using [Ghidra](https://github.com/nationalsecurityagency/ghidra)-based [docker container](https://hub.docker.com/r/blacktop/ghidra). We performed analysis and manual refactoring to isolate the vulnerability and make the relevant C code more readable. The result is saved in the [source.c](./source.c) file and generated through the [decompile.sh](./Ressources/decompile.sh) shell script.
+We also decompile the binary using a [Ghidra](https://github.com/nationalsecurityagency/ghidra)-based [docker container](https://hub.docker.com/r/blacktop/ghidra). We performed analysis and manual refactoring to isolate the vulnerability and make the relevant C code more readable. The result is saved in the [source.c](./source.c) file and generated through the [decompile.sh](./Ressources/decompile.sh) shell script.
 
 ## Binary particularities
 
-This following can be observed by accessing the server via the [ssh.sh](./Ressources/ssh.sh) script.
+By connecting via ssh (cf. [ssh.sh](./Ressources/ssh.sh)), we made some observations.
 
 On login or by executing `checksec --kernel && checksec --file "/home/user/level0/level0"`, we discover:
 ```sh
@@ -45,48 +45,102 @@ Useful documentation:
 
 ## Discovered vulnerability
 
-This decompiled binary as described in the [source](source.c) file is subject to a "Use of Inherently Dangerous Function" ([CWE-242](http://cwe.mitre.org/data/definitions/242.html)).
-It uses the [`gets()`](https://man7.org/linux/man-pages/man3/gets.3.html) who's man page states it explicitly.
+The decompiled binary (cf. [source](source.c)) is subject to a "Use of Inherently Dangerous Function" ([CWE-242](http://cwe.mitre.org/data/definitions/242.html)) as state by the [`gets()` man page](https://man7.org/linux/man-pages/man3/gets.3.html).
 
-As the function does no perform a buffer overrun check, it introduces a **stack-overflow** opportunity. In paralle, the kernel and binary do not implement modern security practices *(Stack Canaries, No-eXecute bit)*, that would make it harder to exploit.
+`gets()` does not perform a buffer overrun check. It introduces a **stack-overflow** opportunity.  
+In parallel, the kernel and binary do not implement modern security practices *(Stack Canaries, No-eXecute bit)* that would make it harder to exploit.
 
 ## Vulnerability analysis
 
-Analysis of [source.c](./source.c) reveals that `gets()` is intended to write into a 76 byte buffer.
-Analysis of [source.asm](./source.asm) reveals that:
-- `gets()` writes into a **80 byte** buffer expanded due to memory alignment requirements.
-- The functions [prologue and epilogue](https://en.wikipedia.org/wiki/Function_prologue_and_epilogue) take 8 bytes *(on 32-bit binaries)*, including the current **frame pointer** (4 bytes) and **return address** (4 bytes).
+We wish to perform a stack overflow. We must analyze how this 32-bit binary's stack operates.
 
-Here is a representation of the `main()` function stack frame.
+Traditionally, a 32-bit function **call** follows this pattern:
+1. The **Return Address** is pushed onto the stack **(-4 bytes)**, derived from the address of the instruction after the CALL instruction.
+2. The CPU jumps to the called function's address.
+3. The **caller's Stack Base Pointer (EBP)** is pushed onto the stack **(-4 bytes)**.
+4. The EBP register takes the value of the current Stack Pointer (ESP).
+5. The function allocates space for **local variables** on the stack **(-N bytes)** by decreasing the value held by the ESP register.
+
+Model of typical 32-bit x86 stack frame (post function prologue):
 ```ruby
- HIGHER MEMORY ADDRESSES
-+-----------------------+
-|  Return address (4B)  |
-+-----------------------+
-|  Frame pointer (4B)   | <- Stack Base Pointer (EBP)
-+ ----------------------+
-|                       |
-|                       |
-|                       |
-|     Buffer (80B)      |
-|                       |
-|                       |
-|                       |
-+-----------------------+ <-- Stack Pointer (ESP)
- LOWER MEMORY ADDRESSES  
+    HIGHER MEMORY ADDRESSES    
++-----------------------------+
+|        Return address       | (4 bytes)
++-----------------------------+
+| Caller's Stack Base Pointer | (4 bytes)
++-----------------------------+ <--- Stack Base Pointer (EBP)
+|       Memory alignment      | (0-15 bytes)
++-----------------------------+
+|                             |
+|                             |
+|                             |
+|       Local Variables       | (0-N bytes)
+|                             |
+|                             |
+|                             |
++-----------------------------+ <--- Stack Pointer (ESP)
+     LOWER MEMORY ADDRESSES    
 ```
-The function [epilogue process](https://en.wikipedia.org/wiki/Function_prologue_and_epilogue) cleans up the current stack frame and moves the stored Return Address into the **Next Instruction Pointer (EIP)**, effectively handing control of the CPU to that address.
 
-By overwriting this return address, we can hijack the program's control flow, redirecting it to any function or malicious code of our choosing.
+Traditionally, once the function finishes, it performs its [epilogue](https://en.wikipedia.org/wiki/Function_prologue_and_epilogue), following this pattern:
+1. **Local variable** stack space is released **(+N bytes)** by moving the Stack Pointer (ESP) back to the value of the Stack Base Pointer (EBP).
+2. The **caller's Stack Base Pointer (EBP)** is restored by popping it from the stack **(+4 bytes)**.
+3. The **Return Address** is popped from the stack **(+4 bytes)** into the Instruction Pointer (EIP).
+4. The CPU resumes execution at the restored Return Address.
 
-Since the [No-eXecute (NX)](https://ctf101.org/binary-exploitation/no-execute/) bit is disabled, we can simply inject our own code into the stack and point the EIP to the start of it to execute it.
+> For each 32-bit x86 function call, the stack usage increase ranges from **8 to 8+N bytes**.
+
+By analyzing the [source.c](./source.c) and [source.asm](./source.asm) files, we observe that the program allocates 76 bytes on the stack for the buffer. Since the buffer written to by `gets()` is the only local variable declared on the stack, we do not need to consider the ordering of local variables.
 
 ## Exploit
 
-The binary has the SetUID bit set, which assigns the Effective User ID (EUID) of **level2** to the process.
-If we spawn a shell while preserving this EUID, we achieve privilege escalation.
+Our objective is, through a stack overflow, to overwrite data on the stack, specifically the **Return Address**, and therefore indirectly control the Instruction Pointer (EIP). This allows us to **hijack and redirect the program's execution flow** to code located at an address we control.
 
-Our exploit follows this procedure:
-1. Inject machine code into the buffer (max 84 bytes). It must be ASM compatible and ideally compacted through HEX.
-2. Overwrite the Return Address on the stack to point to the start of the buffer.
-3. Allow the program to complete its function epilogue and execute our injected code.
+Since the [No-eXecute (NX)](https://ctf101.org/binary-exploitation/no-execute/) bit is disabled, the stack is executable. Therefore, the Instruction Pointer (EIP) can be redirected to execute code placed directly on the stack.
+
+We have two options:
+1. Redirect the code to an existing vulnerable function, such as `run()`, as seen in [source.c](./source.c) file.
+2. Redirect the code to malicious injected valid machine code, such as a syscall.
+
+Buffer overflow model
+```sh
+                      Write direction ->>>                      
+
+[............BUFFER............][..EBP..][.....Return Addr.....]
+|           76 Bytes           ||4 Bytes||       4 Bytes       |
+|                   STACK LAYOUT PRE-OVERFLOW                  |
+
+[................PAYLOAD................][.... Exploit addr....]
+|           76 + 4 = 80 Bytes           ||       4 Bytes       |
+|                  STACK LAYOUT POST-OVERFLOW                  |
+```
+
+
+"/bin/sh"
+```asm
+
+```
+
+<!-- The injected malicious code must consist of valid machine code, ideally represented as hexadecimal byte values for flexibility and compactness.
+
+To trigger a privilege escalation, we wish to replace the current process with a shell while keeping the current EUID *(level 2)*.
+
+By considering the following [syscall table](https://filippo.io/linux-syscall-table/), we decided that the `execve syscall (%rax = 59)` would be an appropriate candidate.
+
+```
+"/bin/sh\0"
+mov eax, 59
+mov ebx, path
+mov ecx, 0
+mov edx, 0
+syscall
+```
+
+<!-- "/bin/sh\0" = 8 bytes
+mov rax,59
+eax -->
+
+-------------------
+
+/bin/sh\0
+ -->

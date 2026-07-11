@@ -2,6 +2,19 @@
 /* *                       Code décompilé via GHIDRA                       * */
 /* ************************************************************************* */
 
+/* Function: run. Address: 08048444 */
+
+// void run(void)
+
+// {
+//   fwrite("Good... Wait what?\n",1,0x13,stdout);
+//   system("/bin/sh");
+//   return;
+// }
+
+
+/* Function: main. Address: 08048480 */
+
 // void main(void)
 
 // {
@@ -21,6 +34,16 @@
 */
 
 #include <stdio.h>
+
+/* Function: run. Address: 08048444 */
+
+void run(void) {
+  printf("Good... Wait what?\n");
+  system("/bin/sh");
+  return;
+}
+
+/* Function: main. Address: 08048480 */
 
 int	main(void) {
 	char	buffer[76];

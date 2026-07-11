@@ -1,17 +1,17 @@
 # RainFall (level0)
 
 In this project, we try to **exploit binaries**.
-By doing so, we wish to read the `/home/user/levelXX/.pass` file, containing our flag serving as the password for the next level.
+By doing so, we wish to read the `/home/user/level1/.pass` file, containing our flag serving as the password for the next level.
 
 ## Binary decompilation.
 
 It is a **ELF 32-bit x86 LSB** executable as stated by the command `file -b ~/level0` commands.
 
-We also decompiled the binary using [Ghidra](https://github.com/nationalsecurityagency/ghidra)-based [docker container](https://hub.docker.com/r/blacktop/ghidra). We performed analysis and manual refactoring to isolate the vulnerability and make the relevant C code more readable. The result is saved in the [source.c](./source.c) file and generated through the [decompile.sh](./Ressources/decompile.sh) shell script.
+We also decompile the binary using a [Ghidra](https://github.com/nationalsecurityagency/ghidra)-based [docker container](https://hub.docker.com/r/blacktop/ghidra). We performed analysis and manual refactoring to isolate the vulnerability and make the relevant C code more readable. The result is saved in the [source.c](./source.c) file and generated through the [decompile.sh](./Ressources/decompile.sh) shell script.
 
 ## Binary particularities
 
-This following can be observed by accessing the server via the [ssh.sh](./Ressources/ssh.sh) script.
+By connecting via ssh (cf. [ssh.sh](./Ressources/ssh.sh)), we made some observations.
 
 On login or by executing `checksec --kernel && checksec --file "/home/user/level0/level0"`, we discover:
 ```sh
