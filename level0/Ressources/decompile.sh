@@ -7,15 +7,7 @@ CURR_DIR_PATH="$(cd "$(dirname "$0")" && pwd)"
 ### SOURCES ###
 
 . "$CURR_DIR_PATH/../../common/ghidra/ghidra.sh";
-. "$CURR_DIR_PATH/sshid.sh";
-
-# ##### #
-# UTILS #
-# ##### #
-
-_log() {
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*";
-}
+. "$CURR_DIR_PATH/.sshid.sh";
 
 # #### #
 # MAIN #

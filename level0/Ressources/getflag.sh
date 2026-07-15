@@ -39,8 +39,9 @@ main() {
         return 1;
     fi
 
-    log "Flag '$flag' has been written to '$CURR_DIR_PATH/../flag'";
-    echo -n "$flag" > "$CURR_DIR_PATH/../flag";
+    flag_path="$CURR_DIR_PATH/../flag";
+    log "Flag '$flag' has been written to '$flag_path'";
+    echo -n "$flag" > "$flag_path";
 }
 
 main "$@";
