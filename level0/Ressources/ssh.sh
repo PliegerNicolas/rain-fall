@@ -8,14 +8,6 @@ CURR_DIR_PATH="$(cd "$(dirname "$0")" && pwd)"
 
 . "$CURR_DIR_PATH/.sshid.sh";
 
-# ##### #
-# UTILS #
-# ##### #
-
-_log() {
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*";
-}
-
 # #### #
 # MAIN #
 # #### #
