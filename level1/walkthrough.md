@@ -28,11 +28,15 @@ RELRO           STACK CANARY      NX            PIE             RPATH      RUNPA
 No RELRO        No canary found   NX disabled   No PIE          No RPATH   No RUNPATH   /home/user/level1/level1
 ```
 
-By calling `find /proc/sys/kernel -name "randomize_va_space" -exec cat {} +`, we discover that [ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) is disabled.
-
-We also discover that the flag is owned by `level2` and has the `setuid` flag set.
+[ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) is disabled on this system.
 ```sh
-ls -la ~/level1
+$ find /proc/sys/kernel -name "randomize_va_space" -exec cat {} +
+0
+```
+
+The binary is owned by `level2` and has the `setuid` flag set.
+```sh
+$ ls -la ~/level1
 -rwsr-s---+ 1 level2 users 5138 Mar  6  2016 /home/user/level1/level1
 ```
 
@@ -54,7 +58,7 @@ In parallel, the kernel and binary do not implement modern security practices *(
 
 ## Vulnerability analysis
 
-We have a **32-bit x86** (elf32-i386) binary containing two user defined functions.
+We have a **32-bit x86** (elf32-i386) binary containing two user defined functions (`main()`, `run()`).
 To perform a **stack overflow** attack, we need to analyze and visualize the program's [**call stack**](https://en.wikipedia.org/wiki/Call_stack). More specifically the target functions **stack frame**.  
 We target the `main()` function.
 
@@ -101,10 +105,8 @@ Notices:
 
 As the kernel's [ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) option is disabled, we can use [GDB](https://www.sourceware.org/gdb/) identify the static addresses in a given stack frame.
 ```sh
-$ gdb -ex "start" -ex "info frame" --args ./level1;
-# ...
+$ gdb -batch -ex "start" -ex "info frame" ./level1
 Temporary breakpoint 1 at 0x8048483
-Starting program: /home/user/level1/level1 
 
 Temporary breakpoint 1, 0x08048483 in main ()
 Stack level 0, frame at 0xbffff740:
@@ -113,7 +115,6 @@ Stack level 0, frame at 0xbffff740:
  Locals at 0xbffff738, Previous frame's sp is 0xbffff740
  Saved registers:
   ebp at 0xbffff738, eip at 0xbffff73c
-# ...
 ```
 
 After the additional analysis of the [source.asm](./source.asm) file,  
@@ -177,7 +178,10 @@ Since `run()` was not invoked via a `CALL` instruction, the stack lacks the stan
 ```
 
 ```sh
-$ gdb -ex "start" -ex "p exit" ./level1
+$ gdb -batch -ex "start" -ex "p exit" ./level1
+Temporary breakpoint 1 at 0x8048483
+
+Temporary breakpoint 1, 0x08048483 in main ()
 $1 = {<text variable, no debug info>} 0xb7e5ebe0 <exit> # <=> \xe0\xeb\xe5\xb7
 ```
 

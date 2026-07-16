@@ -1,5 +1,5 @@
 /* ************************************************************************* */
-/* *                       Code décompilé via GHIDRA                       * */
+/* *                       Decompiled code via GHIDRA                      * */
 /* ************************************************************************* */
 
 /* Function: run. Address: 08048444 */
@@ -25,7 +25,7 @@
 // }
 
 /* ************************************************************************* */
-/* *                       Code restitué manuellement                      * */
+/* *                      Manually reconstructed code                      * */
 /* ************************************************************************* */
 
 /*
@@ -33,21 +33,21 @@
 * plus lisible et conserve la vulnérabilité à exploiter.
 */
 
-#include <stdio.h>
+  #include <stdio.h>
 
-/* Function: run. Address: 08048444 */
+  /* Function: run. Address: 08048444 */
 
-void run(void) {
-  printf("Good... Wait what?\n");
-  system("/bin/sh");
-  return;
-}
+  void run(void) {
+    printf("Good... Wait what?\n");
+    system("/bin/sh");
+    return;
+  }
 
-/* Function: main. Address: 08048480 */
+  /* Function: main. Address: 08048480 */
 
-int	main(void) {
-	char	buffer[76];
+  int	main(void) {
+    char	buffer[76];
 
-	gets(buffer);
-	return 0;
-}
+    gets(buffer);
+    return 0;
+  }
