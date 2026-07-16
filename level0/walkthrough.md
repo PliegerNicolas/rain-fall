@@ -26,11 +26,15 @@ RELRO           STACK CANARY      NX            PIE             RPATH      RUNPA
 No RELRO        No canary found   NX enabled    No PIE          No RPATH   No RUNPATH   /home/user/level0/level0
 ```
 
-By calling `find /proc/sys/kernel -name "randomize_va_space" -exec cat {} +`, we discover that [ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) is disabled.
-
-We also discover that the flag is owned by `level1` and has the `setuid` flag set.
+[ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) is disabled on this system.
 ```sh
-ls -la ~/level0
+$ find /proc/sys/kernel -name "randomize_va_space" -exec cat {} +
+0
+```
+
+The binary is owned by `level2` and has the `setuid` flag set.
+```sh
+$ ls -la ~/level0
 -rwsr-x---+ 1 level1 users 747441 Mar  6  2016 /home/user/level0/level0
 ```
 
