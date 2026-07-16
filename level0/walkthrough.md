@@ -13,7 +13,7 @@ We also decompile the binary using a [Ghidra](https://github.com/nationalsecurit
 
 By connecting via ssh (cf. [ssh.sh](./Ressources/ssh.sh)), we made some observations.
 
-On login or by executing `checksec --kernel && checksec --file "/home/user/level0/level0"`, we discover:
+On login or by executing `checksec --kernel && checksec --file ~/level0`, we discover:
 ```sh
 GCC stack protector support:            Enabled
 Strict user copy checks:                Disabled
@@ -26,13 +26,7 @@ RELRO           STACK CANARY      NX            PIE             RPATH      RUNPA
 No RELRO        No canary found   NX enabled    No PIE          No RPATH   No RUNPATH   /home/user/level0/level0
 ```
 
-[ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) is disabled on this system.
-```sh
-$ find /proc/sys/kernel -name "randomize_va_space" -exec cat {} +
-0
-```
-
-The binary is owned by `level2` and has the `setuid` flag set.
+The binary is owned by `level1` and has the `setuid` flag set.
 ```sh
 $ ls -la ~/level0
 -rwsr-x---+ 1 level1 users 747441 Mar  6  2016 /home/user/level0/level0
