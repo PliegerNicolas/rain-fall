@@ -67,7 +67,7 @@ Our intention is to execute a `gets()` based **stack overflow** attack to overwr
 +--------------------------------+ <--- p's Stack Frame start (@ 0xbffff72C).
 |    main's stack base pointer   |
 +--------------------------------+ <--- Stack Base Pointer (EBP @ 0xbffff728).
-| |     unused    |  (8 bytes)   |
+| |   alignment   |  (8 bytes)   |
 | +---------------+ (0xbffff720) |
 | |  var ret_addr |  (4 bytes)   |
 | +---------------+ (0xbffff71c) |

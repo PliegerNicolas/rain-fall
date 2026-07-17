@@ -120,15 +120,15 @@ we determined that the `main()` function stack frame would ressemble this:
 +--------------------------------+ <--- Begin of `main()` stack frame.
 |   Caller's Stack Base Pointer  | (4 bytes @ 0xbffff738)
 +--------------------------------+ <--- Stack Base Pointer (EBP)
-|  | Alignment  | (8 bytes)      |
+|  | alignment  | (8 bytes)      |
 +  +------------+                |
 |  |            |                |
 |  |            |                |
-|  |   Buffer   | (64 bytes)     | (88 bytes)
+|  |  bBuffer   | (64 bytes)     | (88 bytes)
 |  |            |                |
 |  |            |                |
 +  +------------+ (@ 0xbffff6f0) |
-|  | Alignment  | (16 bytes)     |
+|  | alignment  | (16 bytes)     |
 +--------------------------------+ <--- Stack Pointer (ESP)
       LOWER MEMORY ADDRESSES      
 ```
