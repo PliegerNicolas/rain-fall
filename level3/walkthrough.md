@@ -1,7 +1,7 @@
 # RainFall (level0)
 
 In this project, we try to **exploit binaries**.
-By doing so, we wish to read the `/home/user/level3/.pass` file, containing our flag serving as the password for the next level.
+By doing so, we wish to read the `/home/user/level4/.pass` file, containing our flag serving as the password for the next level.
 
 ## Binary decompilation.
 
@@ -30,7 +30,7 @@ No RELRO        No canary found   NX disabled   No PIE          No RPATH   No RU
 
 The binary is owned by `level4` and has the `setuid` flag set.
 ```sh
-$ ls -la ~/level3 
+$ ls -la ~/level3
 -rwsr-s---+ 1 level4 users 5366 Mar  6  2016 /home/user/level3/level3
 ```
 
@@ -144,7 +144,7 @@ No user-defined functions request space on the heap. However, `printf()` calls m
 
 The `v()` function allocates 16 bytes *(4 words)* of stack space for function arguments. This memory region spans in the stack from `0xbffff520` down to `0xbffff510`.
 
-With the current call: `printf(buffer)`, pnly the **4 lowest bytes** of that allocated memory region (`0xbffff514` to `0xbffff510`) are utilized, storing the pointer to the **buffer** populated via `fgets()`.
+With the current call: `printf(buffer)`, only the **4 lowest bytes** of that allocated memory region (`0xbffff514` to `0xbffff510`) are utilized, storing the pointer to the **buffer** populated via `fgets()`.
 
 The first parameter relative to `printf()`'s stack frame is at `ebp+8`, an offset handled automatically by `printf()`.
 
