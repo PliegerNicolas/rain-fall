@@ -70,8 +70,7 @@ if (m == 64) {
 
 ### Intent
 
-We wish to identify the variable `m` and set its value to 64 *(0x40)*, satisfying the privilege escalation condition.  
-While we could also hijack control flow by overwriting the return address, that approach requires significantly more effort.
+We wish to identify the variable `m` and set its value to 64 *(0x40)*, satisfying the privilege escalation condition.
 
 ### Static Storage
 
