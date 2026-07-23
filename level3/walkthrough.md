@@ -145,7 +145,7 @@ No user-defined functions request space on the heap. However, `printf()` calls m
 
 The `v()` function allocates 16 bytes *(4 words)* of stack space for function arguments. This memory region spans in the stack from `0xbffff520` down to `0xbffff510`.
 
-With the current call: `printf(buffer)`, pnly the **4 lowest bytes** of that allocated memory region (`0xbffff514` to `0xbffff510`) are utilized, storing the pointer to the **buffer** populated via `fgets()`.
+With the current call: `printf(buffer)`, only the **4 lowest bytes** of that allocated memory region (`0xbffff514` to `0xbffff510`) are utilized, storing the pointer to the **buffer** populated via `fgets()`.
 
 The first parameter relative to `printf()`'s stack frame is at `ebp+8`, an offset handled automatically by `printf()`.
 

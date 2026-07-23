@@ -44,18 +44,25 @@
 
 int m;
 
+/* Function: p. Address: 08048444 */
+
 void    p(char *buffer) {
     printf(buffer);
 }
+
+/* Function: n. Address: 08048457 */
 
 void    n(void) {
     char    buffer[520];
 
     fgets(buffer, 512, stdin);
     p(buffer);
-    if (m == 16930116)
+    if (m == 16930116) {
         system("/bin/cat /home/user/level5/.pass");
+    }
 }
+
+/* Function: main. Address: 080484a7 */
 
 int main(void) {
     n();
