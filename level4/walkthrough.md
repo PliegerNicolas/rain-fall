@@ -15,7 +15,7 @@ We also decompile the binary using a [Ghidra](https://github.com/nationalsecurit
 
 By connecting via ssh (cf. [ssh.sh](./Ressources/ssh.sh)), we made some observations.
 
-On login or by executing `checksec --kernel && checksec --file ~/level3`, we discover:
+On login or by executing `checksec --kernel && checksec --file ~/level4`, we discover:
 ```sh
 GCC stack protector support:            Enabled
 Strict user copy checks:                Disabled
