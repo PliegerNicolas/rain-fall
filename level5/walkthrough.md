@@ -45,4 +45,23 @@ Useful documentation:
 
 ## Discovered vulnerability
 
+Similary to [level3](../level3/walkthrough.md) and [level4](../level4/walkthrough.md), the program shows a non-standard libc `printf()` usage that violates the specifications of the related [man-page](https://man7.org/linux/man-pages/man3/printf.3.html).
+
+In the following explanations, we will assume you have read the previous  walkthrough.md files ([#1](../level3/walkthrough.md) [#2](../level4/walkthrough.md)).[walkthrough.md](../level3/walkthrough.md).
+
+## Vulnerability analysis
+
+Our binary is compiled for a **32-bit x86** system.  
+It contains three user-defined functions (`main()`, `n()`, and `o()`). Although `o()` is never called in normal execution, it enables privilege escalation via setuid and a call to `system("/bin/sh")`. Meanwhile, the `main()` function merely acts as a wrapper to the `n()` function, thus we will focus on the latter.
+
+### Intent
+
+We wish to overwrite the **Return Address** of the `n()` function to hijack the program's control flow and redirect it to `o()`.
+
+### Stack
+
+...
+
+### Heap
+
 ...
