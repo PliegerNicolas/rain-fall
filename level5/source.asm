@@ -1,9 +1,9 @@
 Disassembly of section .plt:
 
-080483b0 <system@plt>:
- 80483b0:	ff 25 30 98 04 08    	jmp    *0x8049830
- 80483b6:	68 18 00 00 00       	push   $0x18
- 80483bb:	e9 b0 ff ff ff       	jmp    8048370 <_init+0x3c>
+08048390 <_exit@plt>:
+ 8048390:	ff 25 28 98 04 08    	jmp    *0x8049828
+ 8048396:	68 08 00 00 00       	push   $0x8
+ 804839b:	e9 d0 ff ff ff       	jmp    8048370 <_init+0x3c>
 
 Disassembly of section .text:
 

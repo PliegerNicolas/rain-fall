@@ -82,8 +82,8 @@ $ objdump -t ./level3 | grep --word-regexp "m"
 ```
 Declared in the [ELF .bss section](https://en.wikipedia.org/wiki/.bss), is it a global variable:  
 - It's address is `0x0804988c`  
-- In **little-endian hex** encoding: `\x8c\x98\x04\x08`.  
-- In **little-endian oct** encoding: `\214\230\004\010`.  
+- In **little-endian hex** escape sequence: `\x8c\x98\x04\x08`.  
+- In **little-endian oct** escape sequence: `\214\230\004\010`.  
 
 ### Stack
 

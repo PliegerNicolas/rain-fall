@@ -66,8 +66,8 @@ We wish to identify the variable `m` and set its value to 16930116 *(0x1025544)*
 
 `m` is declared in the [ELF .bss section](https://en.wikipedia.org/wiki/.bss) thus is a global variable:  
 - It's address is `0x08049810`  
-- In **little-endian hex** encoding: `\x10\x98\x04\x08`.  
-- In **little-endian oct** encoding: `\020\230\004\010`.
+- In **little-endian hex** escape sequence: `\x10\x98\x04\x08`.  
+- In **little-endian oct** escape sequence: `\020\230\004\010`.
 ```sh
 $ objdump -t ./level4 | grep --word-regexp "m"
 08049810 g     O .bss	00000004              m
@@ -75,7 +75,7 @@ $ objdump -t ./level4 | grep --word-regexp "m"
 
 ### Heap
 
-The program has wrapped some of it's function calls in unecessary wrappers.
+Some of the program's function calls are in unecessary wrappers.
 After the `printf()` call, the stack frames would ressemble something like this.
 ```ruby
       HIGHER MEMORY ADDRESSES     
