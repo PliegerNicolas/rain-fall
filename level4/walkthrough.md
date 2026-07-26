@@ -1,4 +1,4 @@
-# RainFall (level0)
+# RainFall (level4)
 
 In this project, we try to **exploit binaries**.
 By doing so, we wish to read the `/home/user/level5/.pass` file, containing our flag serving as the password for the next level.
@@ -28,7 +28,7 @@ RELRO           STACK CANARY      NX            PIE             RPATH      RUNPA
 No RELRO        No canary found   NX disabled   No PIE          No RPATH   No RUNPATH   /home/user/level4/level4
 ```
 
-The binary is owned by `level4` and has the `setuid` flag set.
+The binary is owned by `level5` and has the `setuid` flag set.
 ```sh
 $ ls -la ~/level4 
 -rwsr-s---+ 1 level5 users 5252 Mar  6  2016 /home/user/level4/level4
