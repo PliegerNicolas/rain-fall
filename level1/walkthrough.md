@@ -45,7 +45,7 @@ Useful documentation:
 
 ## Discovered vulnerability
 
-The decompiled binary (cf. [source](source.c)) is subject to a "Use of Inherently Dangerous Function" ([CWE-242](http://cwe.mitre.org/data/definitions/242.html)) as state by the [`gets()` man page](https://man7.org/linux/man-pages/man3/gets.3.html).
+The decompiled binary (cf. [source](source.c)) is subject to a "Use of Inherently Dangerous Function" ([CWE-242](http://cwe.mitre.org/data/definitions/242.html)) as stated by the [`gets()` man page](https://man7.org/linux/man-pages/man3/gets.3.html).
 
 `gets()` does not perform a buffer overrun check. It introduces a **stack-overflow** opportunity.  
 In parallel, the kernel and binary do not implement modern security practices *(Stack Canaries, No-eXecute bit)* that would make it harder to exploit.
