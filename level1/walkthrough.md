@@ -1,4 +1,4 @@
-# RainFall (level0)
+# RainFall (level1)
 
 In this project, we try to **exploit binaries**.
 By doing so, we wish to read the `/home/user/level2/.pass` file, containing our flag serving as the password for the next level.
