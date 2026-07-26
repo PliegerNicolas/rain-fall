@@ -28,6 +28,6 @@ username="level4";
 password="$(cat ../../level3/flag 2>/dev/null)"; # TODO: not flexible enough.
 
 if [ -z "${password}" ]; then
-    _log "Error: failed to resolved 'password'." >&2;
+    _log "Error: failed to resolve 'password'." >&2;
     exit 1; # Careful with this.
 fi
