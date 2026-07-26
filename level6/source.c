@@ -44,6 +44,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 
 /* Function: n. Address: 08048454 */
 
@@ -51,10 +52,24 @@ void    n(void) {
     system("/bin/cat /home/user/level7/.pass");
 }
 
-void    m(arg1, arg2, arg3, arg4, arg5) {
+/* Function: m. Address: 08048468 */
+
+void    m(void *arg1, void *arg2, void *arg3, void *arg4, void *arg5) {
     puts("Nope");
 }
 
+/* Function: main. Address: 0804847c */
+
 int main(int argc, char *argv[]) {
-    ...;
+    char        *buffer;
+    uintptr_t   *fn_ptr;
+
+    buffer = malloc(64 * sizeof(char));
+    fn_ptr = malloc(1 * sizeof(uintptr_t));
+    *fn_ptr = m;
+
+    strcpy(buffer, argv[1]);
+    ((void (*)(void))(*fn_ptr))();
+
+    return 0;
 }
