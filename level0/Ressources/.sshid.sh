@@ -28,6 +28,6 @@ username="level0";
 password="level0";
 
 if [ -z "${password}" ]; then
-    _log "Error: failed to resolved 'password'." >&2;
+    _log "Error: failed to resolve 'password'." >&2;
     exit 1; # Careful with this.
 fi
