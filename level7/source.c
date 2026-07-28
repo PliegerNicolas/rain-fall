@@ -47,11 +47,8 @@
 
 #include <time.h>
 #include <stdio.h>
-
-struct cntr_s {
-    int     id;
-    char    *str;
-};
+#include <stdlib.h>
+#include <string.h>
 
 char    c[80];
 
@@ -68,16 +65,20 @@ void    m(void /* ??? */) {
 
 int main(int argc, char **argv) {
     FILE            *stream;
+    struct cntr_s {
+        int     id;
+        char    *str;
+    };
     struct cntr_s   *cntr_a;
     struct cntr_s   *cntr_b;
 
     cntr_a = malloc(sizeof(*cntr_a));
     cntr_a->id = 1;
-    cntr_a->str = malloc(2 * sizeof(*cntr_a->str));
+    cntr_a->str = malloc(8 * sizeof(*cntr_a->str));
 
     cntr_b = malloc(sizeof(*cntr_b));
     cntr_b->id = 2;
-    cntr_b->str = malloc(2 * sizeof(*cntr_b->str));
+    cntr_b->str = malloc(8 * sizeof(*cntr_b->str));
 
     strcpy(cntr_a->str, argv[1]);
     strcpy(cntr_b->str, argv[2]);
