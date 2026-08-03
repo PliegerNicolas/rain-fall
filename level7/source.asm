@@ -1,3 +1,10 @@
+Disassembly of section .plt:
+
+08048400 <puts@plt>:
+ 8048400:	ff 25 28 99 04 08    	jmp    *0x8049928
+ 8048406:	68 28 00 00 00       	push   $0x28
+ 804840b:	e9 90 ff ff ff       	jmp    80483a0 <_init+0x34>
+
 Disassembly of section .text:
 
 080484f4 <m>:

