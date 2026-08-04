@@ -54,7 +54,25 @@ Useful documentation:
 
 ### Stack
 
-...
+```ruby
+      HIGHER MEMORY ADDRESSES     
++--------------------------------+
+|      main's return address     | (4 bytes)
++--------------------------------+ <--- main's Stack Frame start (@ 0xbffff73c)
+|   caller's stack base pointer  | (4 bytes)
++--------------------------------+ <--- main's local variables start (EBP: @ 0xbffff738)
+| |               | (8 bytes)    |
+| +---------------+              |
+| |  align/unused | (8 bytes)    |
+| +---------------+              |
+| |     strlen    | (4 bytes)    | (168 bytes)
+| +---------------+              |
+| |     buffer    | (128 bytes)  |
+| +---------------+              |
+| |   cdecl args  | (16 bytes)   |
++--------------------------------+ <-- main's Stack Pointer (ESP: @ 0xbffff690)
+      LOWER MEMORY ADDRESSES      
+```
 
 ### Heap
 
@@ -76,11 +94,10 @@ Useful documentation:
 ----------
 
 ```sh
-level8@RainFall:~$ objdump -t ./level8 | grep --word-regexp "auth"
-08049aac g     O .bss	00000004              auth
-```
+$ objdump -d -j .bss ./level8 | grep -A3 -E "auth|service"
+08049aac <auth>:
+ 8049aac:	00 00 00 00                                         ....
 
-```sh
-level8@RainFall:~$ objdump -t ./level8 | grep --word-regexp "service"
-08049ab0 g     O .bss	00000004              service
+08049ab0 <service>:
+ 8049ab0:	00 00 00 00                                         ....
 ```

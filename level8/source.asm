@@ -45,43 +45,43 @@ Disassembly of section .plt:
  8048480:	ff 25 54 9a 04 08    	jmp    *0x8049a54
  8048486:	68 38 00 00 00       	push   $0x38
  804848b:	e9 70 ff ff ff       	jmp    8048400 <_init+0x3c>
-
+ 
 Disassembly of section .text:
 
-08048564 <main>:
- 8048564:	55                   	push   %ebp
+ 08048564 <main>:
+ 8048564:	55                   	push   %ebp                         ; write+allocate on stack: esp - 4 bytes
  8048565:	89 e5                	mov    %esp,%ebp
- 8048567:	57                   	push   %edi
- 8048568:	56                   	push   %esi
- 8048569:	83 e4 f0             	and    $0xfffffff0,%esp
- 804856c:	81 ec a0 00 00 00    	sub    $0xa0,%esp
+ 8048567:	57                   	push   %edi                         ; write+allocate on stack: esp - 4 bytes
+ 8048568:	56                   	push   %esi                         ; write+allocate on stack: esp - 4 bytes
+ 8048569:	83 e4 f0             	and    $0xfffffff0,%esp             ; allocate space on stack/align: esp - [0;16] bytes
+ 804856c:	81 ec a0 00 00 00    	sub    $0xa0,%esp                   ; allocate space on stack: esp - 160 bytes
  8048572:	eb 01                	jmp    8048575 <main+0x11>
  8048574:	90                   	nop
- 8048575:	8b 0d b0 9a 04 08    	mov    0x8049ab0,%ecx
- 804857b:	8b 15 ac 9a 04 08    	mov    0x8049aac,%edx
- 8048581:	b8 10 88 04 08       	mov    $0x8048810,%eax
- 8048586:	89 4c 24 08          	mov    %ecx,0x8(%esp)
- 804858a:	89 54 24 04          	mov    %edx,0x4(%esp)
- 804858e:	89 04 24             	mov    %eax,(%esp)
- 8048591:	e8 7a fe ff ff       	call   8048410 <printf@plt>
- 8048596:	a1 80 9a 04 08       	mov    0x8049a80,%eax
- 804859b:	89 44 24 08          	mov    %eax,0x8(%esp)
- 804859f:	c7 44 24 04 80 00 00 	movl   $0x80,0x4(%esp)
+ 8048575:	8b 0d b0 9a 04 08    	mov    0x8049ab0,%ecx			    ; make ecx point to: $service
+ 804857b:	8b 15 ac 9a 04 08    	mov    0x8049aac,%edx			    ; make edx point to: $auth
+ 8048581:	b8 10 88 04 08       	mov    $0x8048810,%eax			    ; make eax point to: "%p, %p \n"
+ 8048586:	89 4c 24 08          	mov    %ecx,0x8(%esp)               ; write in stack: esp + 8 bytes
+ 804858a:	89 54 24 04          	mov    %edx,0x4(%esp)               ; write in stack: esp + 4 bytes
+ 804858e:	89 04 24             	mov    %eax,(%esp)                  ; write in stack: esp + 0 bytes
+ 8048591:	e8 7a fe ff ff       	call   8048410 <printf@plt>         ; call printf
+ 8048596:	a1 80 9a 04 08       	mov    0x8049a80,%eax               ; make eax point to: stdin
+ 804859b:	89 44 24 08          	mov    %eax,0x8(%esp)               ; write in stack: esp + 8 bytes
+ 804859f:	c7 44 24 04 80 00 00 	movl   $0x80,0x4(%esp)              ; write in stack: esp + 4 bytes
  80485a6:	00 
- 80485a7:	8d 44 24 20          	lea    0x20(%esp),%eax
- 80485ab:	89 04 24             	mov    %eax,(%esp)
- 80485ae:	e8 8d fe ff ff       	call   8048440 <fgets@plt>
- 80485b3:	85 c0                	test   %eax,%eax
- 80485b5:	0f 84 71 01 00 00    	je     804872c <main+0x1c8>
- 80485bb:	8d 44 24 20          	lea    0x20(%esp),%eax
+ 80485a7:	8d 44 24 20          	lea    0x20(%esp),%eax              ; make eax point to: esp + 32 bytes
+ 80485ab:	89 04 24             	mov    %eax,(%esp)                  ; write in stack: esp + 0 bytes 
+ 80485ae:	e8 8d fe ff ff       	call   8048440 <fgets@plt>          ; call fgets
+ 80485b3:	85 c0                	test   %eax,%eax                    ; Check if eax is NULL.
+ 80485b5:	0f 84 71 01 00 00    	je     804872c <main+0x1c8>         ; if eax is NULL, jump to: 0x0804872c
+ 80485bb:	8d 44 24 20          	lea    0x20(%esp),%eax              ; make eax point to: esp + 32 bytes
  80485bf:	89 c2                	mov    %eax,%edx
- 80485c1:	b8 19 88 04 08       	mov    $0x8048819,%eax
- 80485c6:	b9 05 00 00 00       	mov    $0x5,%ecx
+ 80485c1:	b8 19 88 04 08       	mov    $0x8048819,%eax              ; make eax point to: "reset"
+ 80485c6:	b9 05 00 00 00       	mov    $0x5,%ecx                    ; make ecx hold: 5
  80485cb:	89 d6                	mov    %edx,%esi
  80485cd:	89 c7                	mov    %eax,%edi
- 80485cf:	f3 a6                	repz cmpsb %es:(%edi),%ds:(%esi)
- 80485d1:	0f 97 c2             	seta   %dl
- 80485d4:	0f 92 c0             	setb   %al
+ 80485cf:	f3 a6                	repz cmpsb %es:(%edi),%ds:(%esi)    ; strncmp(edx, "reset", 5)
+ 80485d1:	0f 97 c2             	seta   %dl                          ; set dl to 1 if previous comparison was > than the target
+ 80485d4:	0f 92 c0             	setb   %al                          ; set al to 1 if previous comparison was < than the target
  80485d7:	89 d1                	mov    %edx,%ecx
  80485d9:	28 c1                	sub    %al,%cl
  80485db:	89 c8                	mov    %ecx,%eax
@@ -119,7 +119,7 @@ Disassembly of section .text:
  804864d:	b9 05 00 00 00       	mov    $0x5,%ecx
  8048652:	89 d6                	mov    %edx,%esi
  8048654:	89 c7                	mov    %eax,%edi
- 8048656:	f3 a6                	repz cmpsb %es:(%edi),%ds:(%esi)
+ 8048656:	f3 a6                	repz cmpsb %es:(%edi),%ds:(%esi)    ; strncmp(edx, "auth ", 5)
  8048658:	0f 97 c2             	seta   %dl
  804865b:	0f 92 c0             	setb   %al
  804865e:	89 d1                	mov    %edx,%ecx
@@ -137,7 +137,7 @@ Disassembly of section .text:
  8048683:	b9 06 00 00 00       	mov    $0x6,%ecx
  8048688:	89 d6                	mov    %edx,%esi
  804868a:	89 c7                	mov    %eax,%edi
- 804868c:	f3 a6                	repz cmpsb %es:(%edi),%ds:(%esi)
+ 804868c:	f3 a6                	repz cmpsb %es:(%edi),%ds:(%esi)    ; strncmp(edx, "service", 6)
  804868e:	0f 97 c2             	seta   %dl
  8048691:	0f 92 c0             	setb   %al
  8048694:	89 d1                	mov    %edx,%ecx
@@ -157,7 +157,7 @@ Disassembly of section .text:
  80486c0:	b9 05 00 00 00       	mov    $0x5,%ecx
  80486c5:	89 d6                	mov    %edx,%esi
  80486c7:	89 c7                	mov    %eax,%edi
- 80486c9:	f3 a6                	repz cmpsb %es:(%edi),%ds:(%esi)
+ 80486c9:	f3 a6                	repz cmpsb %es:(%edi),%ds:(%esi)    ; strncmp(edx, "login", 5)
  80486cb:	0f 97 c2             	seta   %dl
  80486ce:	0f 92 c0             	setb   %al
  80486d1:	89 d1                	mov    %edx,%ecx
@@ -198,3 +198,4 @@ Disassembly of section .text:
  804873d:	90                   	nop
  804873e:	90                   	nop
  804873f:	90                   	nop
+ 

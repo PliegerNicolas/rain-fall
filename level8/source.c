@@ -133,7 +133,15 @@
 /* ************************************************************************* */
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct auth_s {
+    char    login[32];
+    bool    privileged;
+};
 
 char    *auth = NULL;
 char    *service = NULL;
@@ -141,28 +149,32 @@ char    *service = NULL;
 /* Function: main. Address: 08048564 */
 
 int main(void) {
-    char    buffer[132];
-    char    *payload;
+    char    buffer[128];
+    char    *arg;
 
-    while (1) {
+    while (true) {
         printf("%p, %p \n", auth, service);
 
         if (fgets(buffer, 128, stdin) == NULL)
             return 0;
 
-        if (strncmp(buffer, "auth", 4) == 0) {
-            payload = buffer + 5;
-            auth = calloc(4, 1);
-            //...
+        if (strncmp(buffer, "auth ", 5) == 0) {
+            auth = (char *)calloc(4, sizeof(*auth));
+            arg = buffer + 5;
+            if (strlen(arg) < 31)
+                strcpy(auth, arg);
         } else if (strncmp(buffer, "reset", 5) == 0) {
-            payload = buffer + 6;
-            // ...
-        } else if (strncmp(buffer, "service", 7) == 0) {
-            payload = buffer + 8;
-            // ...
+            free(auth);
+        } else if (strncmp(buffer, "servic", 6) == 0) {
+            arg = buffer + 7;
+            service = strdup(arg);
         } else if (strncmp(buffer, "login", 5) == 0) {
-            payload = buffer + 6;
-            // ...
+            bool    privileged = ((struct auth_s *)auth)->privileged;
+            if (privileged != 0) {
+                system("/bin/sh");
+            } else {
+                fwrite("Password:\n", 1, 10, stdout);
+            }
         }
     }
 
