@@ -88,7 +88,8 @@ Useful documentation:
 
 ## Exploit
 
-...
+```sh
+```
 
 
 ----------
