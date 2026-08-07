@@ -163,7 +163,7 @@ int main(void) {
             arg = buffer + 5;
             if (strlen(arg) < 31)
                 strcpy(auth, arg);
-        } else if (strncmp(buffer, "reset", 5) == 0) {
+        } else if (strncmp(buffer, "reset", 5) == 0 && auth != NULL) {
             free(auth);
         } else if (strncmp(buffer, "servic", 6) == 0) {
             arg = buffer + 7;
