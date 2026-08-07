@@ -2,41 +2,6 @@
 /* *                       Decompiled code via GHIDRA                      * */
 /* ************************************************************************* */
 
-// /* Function: FUN_080484a0. Address: 080484a0 */
-
-// void FUN_080484a0(void)
-
-// {
-//   (*(code *)PTR_08049b4c)();
-//   return;
-// }
-
-
-// /* Function: ~Init. Address: 08048500 */
-
-// /* WARNING: Switch with 1 destination removed at 0x08048500 */
-// /* std::ios_base::Init::~Init() */
-
-// void __thiscall std::ios_base::Init::~Init(Init *this)
-
-// {
-//   do {
-//                     /* WARNING: Do nothing block with infinite loop */
-//   } while( true );
-// }
-
-
-// /* Function: frame_dummy. Address: 080485d0 */
-
-// /* WARNING: Removing unreachable block (ram,0x080485e8) */
-
-// void frame_dummy(void)
-
-// {
-//   return;
-// }
-
-
 // /* Function: main. Address: 080485f4 */
 
 // void main(int param_1,int param_2)
@@ -121,3 +86,53 @@
 /* ************************************************************************* */
 /* *                      Manually reconstructed code                      * */
 /* ************************************************************************* */
+
+#include <cstring>
+#include <iostream>
+
+class N {
+    private:
+        // This is injected by the compiler when at least one virtual function is declared.
+        // Given a static offset, it allows to call the correct virtual function implementation for a given object.
+        void    ***vtbl;
+        char    annotation[100];
+        int     nbr;
+
+    protected:
+
+    public:
+
+        N(int nbr): nbr(nbr) {}
+
+        ~N() {}
+
+        void    setAnnotation(char *annotation) {
+            memcpy(this->annotation, annotation, strlen(annotation));
+        }
+
+        virtual int operator+(N &other) {
+            return this->nbr + other.nbr;
+        }
+
+        virtual int operator-(N &other) {
+            return this->nbr - other.nbr;
+        }
+};
+
+/* Function: main. Address: 080485f4 */
+
+int main(int argc, char **argv) {
+    N *n1 = NULL;
+    N *n2 = NULL;
+
+    if (argc < 2)
+        return 1;
+
+    n1 = new N(5); // <=> malloc(108) <=> malloc(sizeof(N))
+    n2 = new N(6); // <=> malloc(108) <=> malloc(sizeof(N))
+
+    n1->setAnnotation(argv[1]);
+    *n2 + *n1;
+
+    return 0;
+};
