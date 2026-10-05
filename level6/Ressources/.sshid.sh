@@ -25,7 +25,7 @@ _log() {
 host="localhost";
 port="4242";
 username="level6";
-password="$(cat ../../level5/flag 2>/dev/null)"; # TODO: not flexible enough.
+password="$(cat $(cd "$(dirname "$0")" && pwd)/../../level5/flag 2>/dev/null)";
 
 if [ -z "${password}" ]; then
     _log "Error: failed to resolve 'password'." >&2;
