@@ -39,8 +39,11 @@ int main(int argc, char **argv) {
     int             password;
 
     password = atoi(argv[1]);
+    // [-2147483648; 9];
     if (password < 10) {
+        // memcpy(char *, char *, size_t);
         memcpy(buffer, argv[2], password * 4);
+        // 0x574f4c46 == 1464814662
         if (password == 0x574f4c46) {
             execl("/bin/sh", "sh", NULL);
         }
