@@ -28,7 +28,7 @@ RELRO           STACK CANARY      NX            PIE             RPATH      RUNPA
 No RELRO        No canary found   NX disabled   No PIE          No RPATH   No RUNPATH   /home/user/bonus2/bonus2
 ```
 
-The binary is owned by `bonus2` and has the `setuid` flag set.
+The binary is owned by `bonus3` and has the `setuid` flag set.
 ```sh
 $ ls -la ~/bonus2
 -rwsr-s---+ 1 bonus3 users 5664 Mar  6  2016 /home/user/bonus2/bonus2

