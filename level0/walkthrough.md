@@ -1,45 +1,73 @@
 # RainFall (level0)
 
-In this project, we try to **exploit binaries**.
-By doing so, we wish to read the `/home/user/level1/.pass` file, containing our flag serving as the password for the next level.
+In this project, we try to **exploit binaries** with the intent of reading the `/home/users/level<n+1>/.pass` file, containing our flag serving as the password for the next level.
 
-## Binary decompilation.
+# Binary
 
-It is a **ELF 32-bit x86 LSB** executable as stated by the command `file -b ~/level0` commands.
+Binary properties:
+- Full path: `/home/user/level0/level0`
+- Type: **ELF 32-bit LSB executable** (`file -b ~/level0`)
 
-We also decompile the binary using a [Ghidra](https://github.com/nationalsecurityagency/ghidra)-based [docker container](https://hub.docker.com/r/blacktop/ghidra). We performed analysis and manual refactoring to isolate the vulnerability and make the relevant C code more readable. The result is saved in the [source.c](./source.c) file and generated through the [decompile.sh](./Ressources/decompile.sh) shell script.
+To analyze its content we generated two files:
+- [source.c](./source.c): generated with our [ghidra.sh](../common/ghidra/ghidra.sh), wrapping a [Ghidra](https://github.com/nationalsecurityagency/ghidra)-based [docker container](https://hub.docker.com/r/blacktop/ghidra).
+- [source.asm](./source.asm): trimmed after being generated through `objdump -D ~/level0`.
 
-## Binary particularities
+# Security
 
-By connecting via ssh (cf. [ssh.sh](./Ressources/ssh.sh)), we made some observations.
+Let's connect to the server through [ssh](./Ressources/ssh.sh) and inspect the protections in place.
 
-On login or by executing `checksec --kernel && checksec --file ~/level0`, we discover:
-```sh
-GCC stack protector support:            Enabled
-Strict user copy checks:                Disabled
-Restrict /dev/mem access:               Enabled
-Restrict /dev/kmem access:              Enabled
-grsecurity / PaX: No GRKERNSEC
-Kernel Heap Hardening: No KERNHEAP
-System-wide ASLR (kernel.randomize_va_space): Off (Setting: 0)
-RELRO           STACK CANARY      NX            PIE             RPATH      RUNPATH      FILE
-No RELRO        No canary found   NX enabled    No PIE          No RPATH   No RUNPATH   /home/user/level0/level0
-```
+## File Attributes
 
-The binary is owned by `level1` and has the `setuid` flag set.
 ```sh
 $ ls -la ~/level0
 -rwsr-x---+ 1 level1 users 747441 Mar  6  2016 /home/user/level0/level0
 ```
 
-Useful documentation:
+These describe the binary's privileges.
+|    Attribute    |   State   |                           Meaning for us                           |
+|       ---       |    ---    |                                ---                                 |
+|    Suid bit     |    ✅     | Runs with level1's effective id: opening a shell inherits it.
+
+
+## Compile-Time
+
+```sh
+$ checksec --file ~/level0
+RELRO           STACK CANARY      NX            PIE             RPATH      RUNPATH      FILE
+No RELRO        No canary found   NX enabled    No PIE          No RPATH   No RUNPATH   /home/user/level0/level0
+```
+
+These are the protections baked directly into the binary.
+|   Protection    |   State   |                           Meaning for us                           |
+|       ---       |    ---    |                                ---                                 |
+|      RELRO      |    ❌     | GOT is writable.
+|  Stack Canary   |    ❌     | Stack buffer overflows are possible.
+|       NX        |    ✅     | Stack/Heap are non-executable. Shellcode injection is not possible.
+|       PIE       |    ❌     | The stack's position is predictable.
+| RPATH / RUNPATH |    ❌     | No custom library search path to hijack.
+
+## Kernel Run-Time
+
+```sh
+$ cat /proc/sys/kernel/randomize_va_space
+0
+```
+
+These are the protections baked directly into the binary.
+|   Protection    |   State   |                           Meaning for us                           |
+|       ---       |    ---    |                                ---                                 |
+|      ASLR       |    ❌     | Stack and heap addresses are stable across runs.
+
+## Documentation
+
+Reference material for the concepts above:
 - Setuid flag (Suid): https://fr.wikipedia.org/wiki/Setuid
 - Relocation Read-Only (RELRO): https://ctf101.org/binary-exploitation/relocation-read-only/
 - Stack canary: https://ctf101.org/binary-exploitation/stack-canaries/
 - No eXecute (NX): https://ctf101.org/binary-exploitation/no-execute/
 - Position Independent Code (PIE): https://en.wikipedia.org/wiki/Position-independent_code
 - RUNPATH & RPATH: https://en.wikipedia.org/wiki/Rpath
-- Address Space Layout Randomization (ASRL): https://ctf101.org/binary-exploitation/address-space-layout-randomization/
+- Address Space Layout Randomization (ASLR): https://ctf101.org/binary-exploitation/address-space-layout-randomization/
 
 ## Discovered vulnerability
 
