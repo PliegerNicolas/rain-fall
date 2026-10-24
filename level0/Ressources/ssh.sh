@@ -2,7 +2,7 @@
 
 ### GLOBALS ###
 
-CURR_DIR_PATH="$(cd "$(dirname "$0")" && pwd)"
+CURR_DIR_PATH="$(cd "$(dirname "$0")" && pwd)";
 
 ### SOURCES ###
 
@@ -13,12 +13,13 @@ CURR_DIR_PATH="$(cd "$(dirname "$0")" && pwd)"
 # #### #
 
 main() {
-    host="${host:-localhost}";
-    port="${port:-4242}";
-    username="${username:-level0}";
-    password="${password:-level0}";
+    # /!\ $host $port $username and $sshid_password are defined in the source '.sshid.sh' file.
 
-    sshpass -p "$password" ssh -p "$port" "$username@$host";
+    SSHPASS="$(sshid_password)" sshpass -e \
+        ssh -p "$port" \
+            -o StrictHostKeyChecking="no" \
+            -o UserKnownHostsFile="/dev/null" \
+            "$username@$host";
 }
 
 main "$@";

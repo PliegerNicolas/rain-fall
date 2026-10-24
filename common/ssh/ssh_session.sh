@@ -47,8 +47,8 @@ _assert_flock() {
 # ######### #
 
 ssh_initialize_socket() {
-    if [ "$#" -ne 4 ]; then
-        echo "Usage: ssh_initialize_socket <host> <port> <username> <password>" >&2;
+    if [ "$#" -ne 3 ]; then
+        echo "Usage: SSHPASS=<password> ssh_initialize_socket <host> <port> <username>" >&2;
         return 1;
     fi
 
@@ -60,7 +60,13 @@ ssh_initialize_socket() {
         host="$1";
         port="$2";
         username="$3";
-        password="$4";
+
+        if [ -z "${SSHPASS:-}" ]; then
+            _log "Error: no password provided (define it through the SSHPASS environment variable)." >&2;
+            exit 1;
+        fi
+        export SSHPASS;
+
         socket_path="/tmp/ssh_mux_${username}_${host}_${port}";
         socket_path_lock="${socket_path}.lock";
 
@@ -74,7 +80,7 @@ ssh_initialize_socket() {
 
         rm -f "$socket_path"
 
-        sshpass -p "$password" \
+        sshpass -e \
         ssh -fN \
             -o StrictHostKeyChecking="no" \
             -o UserKnownHostsFile="/dev/null" \
@@ -82,8 +88,8 @@ ssh_initialize_socket() {
             -o ControlPath="$socket_path" \
             -o ControlPersist="10m" \
             -o ConnectTimeout="5" \
-            -p "$port" "$username@$host";
-    
+            -p "$port" "$username@$host" 9>&-;
+
         exit "$?";
     );
 
@@ -136,6 +142,11 @@ ssh_exec_via_socket() {
         username="$3";
         shift 3;
         socket_path="/tmp/ssh_mux_${username}_${host}_${port}";
+
+        if [ ! -S "$socket_path" ] || ! ssh -S "$socket_path" -O check "$username@$host" 2>/dev/null; then
+            _log "Error: no active SSH socket for $username@$host:$port. Run ssh_initialize_socket first." >&2;
+            exit 1;
+        fi
 
         ssh -S "$socket_path" -p "$port" "$username@$host" "$@";
         exit "$?";

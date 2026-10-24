@@ -2,7 +2,7 @@
 
 ### GLOBALS ###
 
-CURR_DIR_PATH="$(cd "$(dirname "$0")" && pwd)"
+CURR_DIR_PATH="$(cd "$(dirname "$0")" && pwd)";
 
 ### SOURCES ###
 
@@ -14,15 +14,17 @@ CURR_DIR_PATH="$(cd "$(dirname "$0")" && pwd)"
 # #### #
 
 main() {
-    host="${host:-localhost}";
-    port="${port:-4242}";
-    username="${username:-level0}";
-    password="${password:-level0}";
+    # /!\ $host $port $username and $sshid_password are defined in the source '.sshid.sh' file.
 
     remote_binary_path="~/$username";
     local_binary_path="$CURR_DIR_PATH/$username";
 
-    sshpass -p "$password" scp -P "$port" "$username@$host:$remote_binary_path" "$local_binary_path";
+    SSHPASS="$(sshid_password)" sshpass -e \
+        scp -P "$port" \
+            -o StrictHostKeyChecking="no" \
+            -o UserKnownHostsFile="/dev/null" \
+            "$username@$host:$remote_binary_path" "$local_binary_path" || return 1;
+
     ghidra_decompile "$local_binary_path" "$CURR_DIR_PATH/";
     rm -f "$local_binary_path";
 }

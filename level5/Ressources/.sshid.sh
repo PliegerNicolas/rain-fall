@@ -1,4 +1,5 @@
-# This file provides functions to manage SSH connections/sockets.
+# This file provides variables and functions for authentication purpose.
+# It is meant to be used with "$CURR_DIR_PATH/../../common/ssh/ssh_session.sh".
 
 # ############# #
 # INCLUDE GUARD #
@@ -10,24 +11,20 @@ else
     _SSHID_LOADED=1
 fi
 
-# ##### #
-# UTILS #
-# ##### #
-
-_log() {
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*";
-}
-
-# ######### #
-# VARIABLES #
-# ######### #
+# ########## #
+# IDENTITY   #
+# ########## #
 
 host="localhost";
 port="4242";
 username="level5";
-password="$(cat $(cd "$(dirname "$0")" && pwd)/../../level4/flag 2>/dev/null)";
 
-if [ -z "${password}" ]; then
-    _log "Error: failed to resolve 'password'." >&2;
-    exit 1; # Careful with this.
-fi
+password_file="$(cd "$(dirname "$0")" && pwd)/../../level4/flag";
+sshid_password() {
+    if [ ! -f "$password_file" ]; then
+        echo "Error: password/flag file not found: '$password_file'." >&2;
+        return 1;
+    fi
+
+    cat "$password_file";
+}

