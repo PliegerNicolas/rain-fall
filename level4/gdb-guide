@@ -1,0 +1,181 @@
+# Level 4 format-string analysis in GDB
+
+This guide traces the format string from `n` to `p` to `printf`, then explains how to read positional format arguments. It uses read-only observations (`%x`); it does not construct a `%n` memory-write input.
+
+## 1. Establish the target and inspect the call chain
+
+Why: the exact instruction sequence and calling convention determine what GDB's stack offsets mean.
+
+From the host:
+
+```sh
+docker exec -it gdbenv bash
+```
+
+In the container:
+
+```sh
+gdb -q /root/host-files/level4
+```
+
+At the GDB prompt:
+
+```gdb
+set disassembly-flavor intel
+set pagination off
+show architecture
+disassemble n
+disassemble p
+```
+
+This executable is 32-bit x86. Its normal calling convention is cdecl: the caller places function arguments on the stack, and the callee reads them using the agreed layout.
+
+The relevant source-level calls are:
+
+```c
+fgets(local_20c, 0x200, stdin);
+p(local_20c);
+```
+
+and inside `p`:
+
+```c
+printf(param_1);
+```
+
+So `fgets` copies input into the local buffer, `n` passes the buffer pointer to `p`, and `p` passes that same pointer as `printf`'s format argument. No extra `printf` arguments are supplied.
+
+## 2. Interpret the GDB snapshot you already captured
+
+Why: the snapshot shows exactly which stack slot contains `p`'s parameter at your breakpoint.
+
+Your stop was:
+
+```text
+esp = 0xbffff4f0
+ebp = 0xbffff508
+eip = 0x0804844a <p+6>
+```
+
+At `p+6`, the function prologue has already established its frame. In the usual 32-bit frame layout, the first parameter is at `[ebp+8]`. Your stack dump shows:
+
+```text
+0xbffff510: 0xbffff520  ...    <- [ebp+8] contains 0xbffff520
+0xbffff520: 0x4f4c4548 ...    <- bytes at that address begin "HELO..."
+```
+
+Thus the command
+
+```gdb
+x/s *(char **)($ebp+8)          # Read p's first parameter as a string pointer
+```
+
+correctly displayed `HELLO\n`. By contrast, `$esp+4` at this stop is not the parameter slot: `esp` moved during the prologue, so dereferencing that location displayed unrelated bytes.
+
+To see the frame setup and verify the offsets rather than relying on a rule of thumb:
+
+```gdb
+x/8i p                           # Show p's first instructions, including its prologue
+info registers esp ebp eip       # Check where execution stopped
+x/12wx $ebp-0x10                 # Show nearby words around p's frame
+```
+
+At the very first instruction of `p`, before its prologue, cdecl instead places the return address at `[esp]` and `param_1` at `[esp+4]`. After `push ebp; mov ebp,esp`, that same parameter is at `[ebp+8]`.
+
+## 3. Inspect the `printf` call itself
+
+Why: the stack at `printf` entry distinguishes the one argument actually passed from other bytes that happen to be nearby.
+
+```gdb
+break printf                     # Stop at printf if its symbol is available
+run                              # Restart; enter HELLO when the program prompts
+```
+
+At the breakpoint:
+
+```gdb
+info registers esp eip           # Record the printf-entry stack pointer
+x/8wx $esp                       # Show return address and words following it
+x/s *(char **)($esp+4)           # Display printf's first argument: its format string
+```
+
+At the entry to a 32-bit cdecl `printf`, `[esp]` is the return address and `[esp+4]` is the format pointer. Variadic argument 1, if supplied, would be at `[esp+8]`; argument 2 would be at `[esp+12]`, and so on. Here the caller only supplies the format pointer. The later stack words are not valid arguments merely because memory exists there.
+
+If GDB cannot resolve `printf`, use `disassemble p` to find the call instruction. Set a breakpoint on that call instruction, then use `stepi` to enter the call target and inspect `eip` and `esp`. Avoid assuming that a breakpoint at the PLT stub and one at the actual libc function entry have identical locations.
+
+## 4. Understand `%x` as an argument read
+
+Why: `%x` consumes an `unsigned int` argument and prints that value in hexadecimal; it does not search for an address.
+
+In a valid call:
+
+```c
+printf("%x", value);
+```
+
+`%x` reads the next variadic argument according to the format and prints its value in base 16. On this 32-bit target, an `unsigned int` occupies 4 bytes.
+
+The vulnerable call is `printf(param_1)`, with no variadic values. Therefore, if the input contains `%x`, the C program has not supplied the argument `%x` requests. The behavior is undefined. The printed word is simply what this particular implementation happens to read from the relevant stack location; it is not a reliable or valid argument.
+
+For read-only diagnosis, restart and enter a marker followed by several `%x` conversions, separated by dots:
+
+```text
+AAAA.%x.%x.%x.%x.%x.%x.%x.%x.%x.%x.%x.%x.%x.%x.%x.%x
+```
+
+The marker's bytes are `41 41 41 41`. If an output field is `41414141`, that conversion read a 4-byte word whose value matches the marker. Count the conversions from 1 to identify the observed position in this run. The dots are separators in the output; they do not affect which argument each `%x` reads.
+
+This observation is a diagnostic of this binary and run, not a general C guarantee. Stack layout can change with compiler, build options, architecture, function changes, or runtime environment.
+
+## 5. Decode positional notation: `%X$`
+
+Why: the number before `$` selects an argument by its 1-based position in the variadic argument list.
+
+For a valid illustrative call:
+
+```c
+printf("%2$x", first, second);
+```
+
+`%2$x` selects `second` and formats it as hexadecimal. `%1$x` would select `first`. The format string itself is a fixed parameter and is not counted as variadic argument 1.
+
+Therefore:
+
+- In `%12$x`, `12$` selects variadic argument 12; `x` says to format it as hexadecimal.
+- In `%12$n`, `12$` selects variadic argument 12; `n` says to treat it as a pointer to `int` and store the number of characters printed so far through that pointer.
+- The number is not an address, a byte count, or a request to search memory. The selected argument's value must itself be an appropriate value for that conversion.
+
+Positional conversions are specified by POSIX and supported by common C libraries such as glibc. They are not the same as sequential conversions: `%x` consumes the next argument in order; `%12$x` selects argument 12 directly.
+
+## 6. Understand `%n` without using it as a probe
+
+Why: `%n` is a write operation, unlike `%x`, which formats a value.
+
+For a valid call:
+
+```c
+int count = -1;
+printf("hello%n", &count);
+```
+
+`printf` prints `hello`, then stores `5` through the supplied `int *`. `%n` itself emits no characters. A positional form such as `%2$n` means the destination pointer is variadic argument 2.
+
+In this challenge, `printf(param_1)` does not supply the pointer arguments that conversions request. Trying to interpret unsupplied stack contents as those arguments invokes undefined behavior. GDB can show bytes in memory, but that does not make those bytes valid C arguments. Keep `%n` out of diagnostic inputs.
+
+## 7. Relate the observation to the program's condition
+
+Why: the branch depends on the value stored in global `m`; that is a different question from which stack argument a conversion reads.
+
+The source checks whether `m == 0x1025544`. Inspect the comparison and symbol if available:
+
+```gdb
+disassemble n                    # Locate the load/compare/branch for m
+p/x &m                           # Show m's address, if symbols are present
+p/x m                            # Show the current value of m
+```
+
+The disassembly tells you where the program reads `m` and what constant it compares against. The `%X$` syntax tells `printf` which variadic argument slot to interpret. These are separate mechanisms: GDB's comparison does not determine a format-argument index.
+
+## 8. A concise explanation for a code review
+
+`n` reads user input into a stack buffer and passes it to `p`; `p` calls `printf` with that input as the format string. Format directives therefore make `printf` interpret arguments that the caller did not provide, which is undefined behavior and the root bug. `%X$` selects a 1-based variadic argument; the conversion letter determines how that value is used. `%x` reads/formats an integer, while `%n` writes the output count through a pointer. The specific stack values observed in GDB describe this build and run only. The safe implementation is `printf("%s", param_1)`.

@@ -11,7 +11,6 @@ void p(char *param_1)
 
 
 void n(void)
-
 {
   char local_20c [520];
   

