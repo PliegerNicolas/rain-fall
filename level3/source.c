@@ -3,12 +3,14 @@
 
 int m;
 
+
 void v(void)
 
 {
   char local_20c [520];
   
   fgets(local_20c,0x200,stdin);
+  print("bh jkdf %n",););
   printf(local_20c);
   if (m == 0x40) {
     fwrite("Wait what?!\n",1,0xc,stdout);

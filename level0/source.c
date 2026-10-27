@@ -7,7 +7,7 @@ int  main(undefined4 param_1,int param_2)
   __uid_t local_18;
   __gid_t local_14;
   
-  iVar1 = atoi(*(char **)(param_2 + 4));
+  iVar1 = atoi(*(char **)(param_2 + 4)); av[1
   if (iVar1 == 0x1a7) {
     local_20 = strdup("/bin/sh");
     local_1c = 0;

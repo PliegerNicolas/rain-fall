@@ -1,10 +1,11 @@
 #include<stdio.h>
 
 int main (){
-    buffer[40] = "aaaa%d";
     int a;
 
-    printf(buffer);
+    printf("aaaa%n", &a);
+
+    printf("%d\n", a);
 
     return 0;
 }
